@@ -1,0 +1,39 @@
+{
+  "schema_version": "a2a-v1.0",
+  "name": "CCiA Autonomous Swarm",
+  "description": "Servicios ag\u00e9nticos monetizables: DevSecOps, Auditor\u00eda Smart Contracts, Cloud FinOps y Datasets Sint\u00e9ticos.",
+  "provider": "CCiA Center",
+  "endpoints": {
+    "base_url": "https://k1-nucbox-k11.tail01b79c.ts.net",
+    "a2a_gateway": "https://k1-nucbox-k11.tail01b79c.ts.net/api/v1/a2a"
+  },
+  "monetization": {
+    "protocol": "x402",
+    "payment_rails": [
+      "stripe_m2m",
+      "usdc_onchain"
+    ]
+  },
+  "services": [
+    {
+      "id": "DEVSECOPS_AUDIT",
+      "price": "$5.00 USD",
+      "unit": "per_audit"
+    },
+    {
+      "id": "SYNTHETIC_DATA",
+      "price": "$2.50 USD",
+      "unit": "1000_rows"
+    },
+    {
+      "id": "CRYPTO_AUDIT",
+      "price": "$15.00 USD",
+      "unit": "per_contract"
+    },
+    {
+      "id": "CLOUD_OPTIMIZE",
+      "price": "10%",
+      "unit": "cost_reduction_share"
+    }
+  ]
+}

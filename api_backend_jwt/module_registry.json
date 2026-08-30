@@ -1,0 +1,234 @@
+{
+  "certified_version": "14.0",
+  "extensions": {
+    "university": {
+      "name": "Universidad CCIA & Decano AI",
+      "entry_point": "mission_control_bridge.py",
+      "status": "CERTIFIED",
+      "checksum_validated": true
+    },
+    "web_dashboard": {
+      "name": "Dashboard Web Live (Port 8090)",
+      "entry_point": "web_dashboard.py",
+      "status": "CERTIFIED",
+      "checksum_validated": true
+    },
+    "lab_sandbox": {
+      "name": "Sandbox de Laboratorio Aislado",
+      "entry_point": "lab_sandbox.py",
+      "status": "CERTIFIED",
+      "checksum_validated": true
+    },
+    "error_autopsy": {
+      "name": "Autopsia de Errores y RAG Reactivo",
+      "entry_point": "error_autopsy.py",
+      "status": "CERTIFIED",
+      "checksum_validated": true
+    },
+    "sandbox_and_error_autopsy_hook": {
+      "description": "Integraci\u00f3n de pruebas en Sandbox aislado (Opci\u00f3n 3) e inspecci\u00f3n de integridad extendida (Opci\u00f3n 11)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 00:58:30 CEST 2026"
+    },
+    "apu_vram_governor_opt8": {
+      "description": "Gobernador din\u00e1mico de memoria compartida APU para la Opci\u00f3n 8",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 00:59:53 CEST 2026"
+    },
+    "pack_4_evolutionary_artifacts": {
+      "description": "Integraci\u00f3n de Router Buz\u00f3n (4), RAG H\u00edbrido (6), Pytest CI Runner (9) y Snapshot Workspace (10)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:01:48 CEST 2026"
+    },
+    "self_healing_watchdog": {
+      "description": "Daemon de autocuraci\u00f3n activa para Dashboard (8090) e integridad SQLite (Opci\u00f3n 11)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:03:23 CEST 2026"
+    },
+    "agent_prompt_tuner": {
+      "description": "Ajuste autom\u00e1tico de System Prompts basado en autopsias de error (Opci\u00f3n 5)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:04:24 CEST 2026"
+    },
+    "planner_topology_validator": {
+      "description": "Validador de topolog\u00eda DAG y enrutamiento \u00f3ptimo de cerebros en el Planificador (Opci\u00f3n 2)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:06:01 CEST 2026"
+    },
+    "project_scaffolder_guard": {
+      "description": "Guardi\u00e1n de sanitizaci\u00f3n y verificaci\u00f3n AST para generaci\u00f3n de proyectos (Opci\u00f3n 1)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:06:49 CEST 2026"
+    },
+    "thesis_auto_defense": {
+      "description": "Defensa de Tesis y ascenso autom\u00e1tico de nivel en el Skill Tree (Opci\u00f3n 5)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:09:49 CEST 2026"
+    },
+    "semantic_code_indexer": {
+      "description": "Indexador sem\u00e1ntico del Workspace para la Biblioteca RAG (Opci\u00f3n 6)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:10:21 CEST 2026"
+    },
+    "apu_thermal_governor": {
+      "description": "Gobernador t\u00e9rmico y protecci\u00f3n del SoC Ryzen/Radeon en la Opci\u00f3n 7",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:10:56 CEST 2026"
+    },
+    "multiagent_consensus_auditor": {
+      "description": "Auditor\u00eda de consenso cruzado entre modelos LLM en Opci\u00f3n 3",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:11:29 CEST 2026"
+    },
+    "ollama_circuit_breaker": {
+      "description": "Circuit Breaker y tolerancia a fallos para Ollama en la Opci\u00f3n 8",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:12:02 CEST 2026"
+    },
+    "websocket_event_streamer": {
+      "description": "Emisi\u00f3n de eventos en tiempo real hacia el Dashboard Web (Opci\u00f3n 7)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:12:38 CEST 2026"
+    },
+    "auto_doc_reporter": {
+      "description": "Generador autom\u00e1tico de documentaci\u00f3n e informes de arquitectura (Opci\u00f3n 11)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:14:06 CEST 2026"
+    },
+    "git_auto_checkpoint": {
+      "description": "Motor de micro-commits autom\u00e1ticos en Git para el Workspace (Opci\u00f3n 10)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:14:41 CEST 2026"
+    },
+    "ollama_context_cache": {
+      "description": "Reutilizaci\u00f3n de cache contextual de prompts para Ollama en la Opci\u00f3n 8",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:15:21 CEST 2026"
+    },
+    "inference_vram_profiler": {
+      "description": "Profiler de m\u00e9tricas de rendimiento (tokens/seg) y VRAM (Opci\u00f3n 8)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:15:52 CEST 2026"
+    },
+    "session_state_persister": {
+      "description": "Persistencia de estado de sesi\u00f3n y apagado elegante en la Opci\u00f3n 12",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:16:30 CEST 2026"
+    },
+    "ollama_model_auto_recovery": {
+      "description": "Verificaci\u00f3n de disponibilidad y precarga de modelos Ollama (Opci\u00f3n 8)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:17:12 CEST 2026"
+    },
+    "thread_concurrency_governor": {
+      "description": "Gobernador de hilos din\u00e1micos seg\u00fan carga de CPU en la Opci\u00f3n 4",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:17:47 CEST 2026"
+    },
+    "pytest_coverage_analyzer": {
+      "description": "Analizador de cobertura de pruebas y densidad de aserciones Pytest (Opci\u00f3n 9)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:18:15 CEST 2026"
+    },
+    "sqlite_wal_optimizer": {
+      "description": "Optimizador de concurrencia SQLite WAL e \u00edndices de base de datos (Opci\u00f3n 11)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:18:43 CEST 2026"
+    },
+    "gc_memory_reclaimer": {
+      "description": "Purga forzada de objetos en memoria RAM/VRAM y compactaci\u00f3n de malloc (Opci\u00f3n 10)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:19:17 CEST 2026"
+    },
+    "agent_latency_tracker": {
+      "description": "Evaluaci\u00f3n de latencia y tiempos de respuesta de agentes (Opci\u00f3n 5)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:19:49 CEST 2026"
+    },
+    "security_vulnerability_scanner": {
+      "description": "Auditor\u00eda est\u00e1tica de vulnerabilidades y credenciales en c\u00f3digo generado (Opci\u00f3n 1)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:20:24 CEST 2026"
+    },
+    "log_rotation_janitor": {
+      "description": "Rotaci\u00f3n y purga autom\u00e1tica de archivos de log en Opci\u00f3n 10",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:21:23 CEST 2026"
+    },
+    "module_integrity_sentinel": {
+      "description": "Verificaci\u00f3n de firmas e integridad de c\u00f3digo fuente de artefactos (Opci\u00f3n 11)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:22:24 CEST 2026"
+    },
+    "env_secrets_vault": {
+      "description": "Auditor\u00eda y enmascaramiento seguro de variables de entorno y secretos (Opci\u00f3n 11)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:22:56 CEST 2026"
+    },
+    "ast_type_syntax_inspector": {
+      "description": "Inspecci\u00f3n est\u00e1tica AST de sintaxis y tipos pre-refactorizaci\u00f3n (Opci\u00f3n 2)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:23:30 CEST 2026"
+    },
+    "openapi_spec_generator": {
+      "description": "Generador autom\u00e1tico de contratos y esquema OpenAPI v3.0 (Opci\u00f3n 3)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:24:06 CEST 2026"
+    },
+    "http_load_benchmark_tester": {
+      "description": "Simulador de carga HTTP concurrente y m\u00e9tricas de latencia P95 (Opci\u00f3n 7)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:24:51 CEST 2026"
+    },
+    "ast_dependency_graph_builder": {
+      "description": "Generaci\u00f3n de mapa de importaciones y grafo de dependencias AST (Opci\u00f3n 6)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:25:20 CEST 2026"
+    },
+    "mock_data_fixture_generator": {
+      "description": "Generaci\u00f3n de fixtures y payloads sint\u00e9ticos para suites de prueba (Opci\u00f3n 9)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:25:54 CEST 2026"
+    },
+    "git_auto_snapshot_vault": {
+      "description": "Gesti\u00f3n de checkpoints autom\u00e1ticos y puntos de reversi\u00f3n Git (Opci\u00f3n 8)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:26:29 CEST 2026"
+    },
+    "system_health_telemetry_exporter": {
+      "description": "Exporter de telemetr\u00eda y consolidaci\u00f3n de salud del sistema (Opci\u00f3n 12)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 01:27:00 CEST 2026"
+    },
+    "rate_limiter_sentinel": {
+      "description": "Protecci\u00f3n Rate Limiting Token Bucket (Opci\u00f3n 3)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 02:06:50 CEST 2026"
+    },
+    "multi_tier_cache_manager": {
+      "description": "Gestor de Cach\u00e9 Multi-Nivel L1/L2 (Opci\u00f3n 4)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 02:06:50 CEST 2026"
+    },
+    "vector_embeddings_router": {
+      "description": "B\u00fasqueda Sem\u00e1ntica Vectorial por Similitud de Coseno (Opci\u00f3n 6)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 02:15:33 CEST 2026"
+    },
+    "prometheus_telemetry_bridge": {
+      "description": "Puente Expresor de M\u00e9tricas Prometheus/OpenTelemetry (Opci\u00f3n 12)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 02:15:33 CEST 2026"
+    },
+    "distributed_persistence_adapter": {
+      "description": "Adaptador H\u00edbrido de Persistencia Distribuida (Opci\u00f3n 11)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 02:15:33 CEST 2026"
+    },
+    "human_resource_broker": {
+      "description": "Broker de Solicitudes Recursos Humano-Agente (Opci\u00f3n 4)",
+      "status": "COMPILED_AND_CERTIFIED",
+      "timestamp": "Thu Aug 27 02:38:35 CEST 2026"
+    }
+  }
+}

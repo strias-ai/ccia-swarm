@@ -1,0 +1,1 @@
+Error de Inferencia: HTTPConnectionPool(host='127.0.0.1', port=11434): Read timed out. (read timeout=60)

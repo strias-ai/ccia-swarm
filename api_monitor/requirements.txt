@@ -1,0 +1,6 @@
+plaintext
+requests
+beautifulsoup4
+pandas
+numpy
+matplotlib

@@ -1,0 +1,11 @@
+```plaintext
+fastapi==0.90.1
+uvicorn==0.18.2
+SQLAlchemy==2.0.18
+sqlite3==2.6.0
+bcrypt==3.2.3
+PyJWT==2.4.0
+python-dotenv==0.21.0
+```
+
+Este archivo contiene las dependencias necesarias para tu proyecto de API REST backend profesional con FastAPI, base de datos SQLite mediante SQLAlchemy, autenticación JWT con hashing seguro de contraseñas, endpoints CRUD protegidos y middleware de logging automatizado con rotación de archivos.

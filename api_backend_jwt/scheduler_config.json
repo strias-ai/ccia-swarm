@@ -1,0 +1,11 @@
+{
+  "mode": "sequential",
+  "interval_minutes": 60,
+  "agent_schedules": {
+    "scout_lib": "02:00",
+    "builder": "03:00",
+    "evaluator": "04:00",
+    "cleaner": "05:00",
+    "grower": "06:00"
+  }
+}

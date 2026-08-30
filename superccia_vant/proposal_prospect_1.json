@@ -1,0 +1,12 @@
+{
+  "prospect": "FinTech Startup X",
+  "detected_flaws": [
+    {
+      "severity": "CRITICAL",
+      "type": "OWASP_A03_INJECTION",
+      "detail": "Uso detectado de eval() o exec()"
+    }
+  ],
+  "pitch": "Hemos detectado 1 fallos críticos. Activa tu plan CCIA Pro para parches automáticos.",
+  "estimated_value": "499 EUR/mes"
+}

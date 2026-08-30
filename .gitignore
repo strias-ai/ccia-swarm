@@ -1,0 +1,18 @@
+# Credenciales y variables de entorno
+.env
+*.env
+
+# Bases de datos SQLite y datos dinámicos
+*.db
+*.sqlite3
+university.db
+
+# Compilados de Python y Caché
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs
+*.log
+ngrok.log
+webhook.log

@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ccia-core"
+version = "7.0.0"
+description = "Sovereign Autonomous Agent Framework with A2A Protocol and Built-in Treasury"
+readme = "README.md"
+authors = [{ name = "CCiA Swarm Architecture", email = "k1@ccia.ai" }]
+license = { text = "MIT" }
+dependencies = [
+    "requests>=2.28.0",
+    "sqlite3worker>=1.1.7"
+]

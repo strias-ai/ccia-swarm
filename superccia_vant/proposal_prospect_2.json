@@ -1,0 +1,12 @@
+{
+  "prospect": "HealthData Cloud",
+  "detected_flaws": [
+    {
+      "severity": "HIGH",
+      "type": "OWASP_A07_CREDENTIAL_LEAK",
+      "detail": "Credencial o clave hardcodeada detectada"
+    }
+  ],
+  "pitch": "Hemos detectado 1 fallos críticos. Activa tu plan CCIA Pro para parches automáticos.",
+  "estimated_value": "499 EUR/mes"
+}
