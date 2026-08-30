@@ -19,8 +19,6 @@ GH_USER = "strias-ai"
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
-    # 1. Catálogo de repositorios publicados
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS github_catalog (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,8 +29,6 @@ def init_db():
             last_synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    
-    # 2. Auditorías de diferencias (Diff Audit)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS github_sync_audit (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,8 +39,6 @@ def init_db():
             audit_log TEXT
         )
     ''')
-    
-    # 3. Solicitudes de publicación (Pending Release Requests)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS github_pub_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,7 +50,6 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    
     conn.commit()
     conn.close()
 
@@ -146,6 +139,53 @@ def run_sync_audit():
     conn.commit()
     conn.close()
 
+def run_e2e_audit():
+    console.print("\n" + "=" * 75)
+    console.print("🧪 AUDITORÍA Y VERIFICACIÓN END-TO-END: AGENTE BIBLIOTECARIO (ARTEFACTO 45)")
+    console.print("=" * 75)
+
+    console.print("\n🔍 1. Lanzando auditoría de diferencias (--cron)...")
+    run_sync_audit()
+    console.print("✅ Auditoría de diferencias completada.")
+
+    console.print("\n📊 2. Verificando tablas de catálogo y solicitudes de publicación...")
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    cat_rows = c.execute("SELECT repo_name, current_version, commit_sha, remote_url, last_synced_at FROM github_catalog").fetchall()
+    req_rows = c.execute("SELECT id, repo_name, target_version, reason, status FROM github_pub_requests ORDER BY id DESC LIMIT 5").fetchall()
+
+    table_cat = Table(title="📦 Repositorios en Catálogo Agéntico", expand=True)
+    table_cat.add_column("Repo", style="cyan")
+    table_cat.add_column("Versión Registrada", style="yellow")
+    table_cat.add_column("Commit SHA", style="magenta")
+    table_cat.add_column("Sincronizado", style="dim")
+    for r in cat_rows:
+        table_cat.add_row(r[0], r[1], r[2], str(r[4]))
+    console.print(table_cat)
+
+    table_req = Table(title="🚀 Solicitudes de Publicación Registradas", expand=True)
+    table_req.add_column("ID", style="bold cyan")
+    table_req.add_column("Repo / Target Version", style="white")
+    table_req.add_column("Motivo", style="yellow")
+    table_req.add_column("Estado", style="green")
+    for r in req_rows:
+        table_req.add_row(str(r[0]), f"{r[1]} -> {r[2]}", r[3], r[4])
+    console.print(table_req)
+
+    console.print("\n🌐 3. Verificando estado del repositorio remoto en GitHub...")
+    git_remote = subprocess.run(["git", "remote", "-v"], cwd=WORKSPACE_DIR, capture_output=True, text=True).stdout.strip()
+    console.print(f"  • Remoto configurado:\n{git_remote}")
+
+    git_status = subprocess.run(["git", "status", "--porcelain"], cwd=WORKSPACE_DIR, capture_output=True, text=True).stdout.strip()
+    if not git_status:
+        console.print("\n[bold green]✅ EL REPOSITORIO LOCAL ESTÁ 100% SINCRONIZADO CON GITHUB.[/bold green]")
+    else:
+        console.print(f"\n[bold yellow]ℹ️ Archivos pendientes de commit:\n{git_status}[/bold yellow]")
+
+    conn.close()
+    console.print("\n" + "=" * 75)
+
 def display_menu():
     init_db()
     
@@ -162,9 +202,10 @@ def display_menu():
         console.print("[2] 🔍 Ejecutar Auditoría de Diferencias (Local vs GitHub Remote)")
         console.print("[3] 🚀 Ver y Aprobar Solicitudes de Publicación Pendientes")
         console.print("[4] 📜 Ver Historial de Auditorías y Logs del Agente")
+        console.print("[5] 🧪 Ejecutar Auditoría End-to-End y Diagnóstico de Autopublicación")
         console.print("[0] ⬅️ Salir")
         
-        choice = input("\nSelecciona una opción [0-4]: ").strip()
+        choice = input("\nSelecciona una opción [0-5]: ").strip()
         
         if choice == "1":
             conn = sqlite3.connect(DB_PATH)
@@ -253,6 +294,10 @@ def display_menu():
             for r in rows:
                 table.add_row(str(r[0]), str(r[1]), str(r[2]), "SÍ" if r[3] else "NO", r[4])
             console.print(table)
+            input("\nPresiona ENTER para continuar...")
+
+        elif choice == "5":
+            run_e2e_audit()
             input("\nPresiona ENTER para continuar...")
 
         elif choice == "0":

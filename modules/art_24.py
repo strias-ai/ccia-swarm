@@ -25,6 +25,7 @@ def main():
         table.add_row("[1]", "🌐 CCiA Publicity & Repository Checker v2.3", "A2A & Tailscale Endpoints")
         table.add_row("[2]", "🛡️ Read-Only System Security & Audit Sentinel", "Inmunidad & Código Core")
         table.add_row("[3]", "💰 FinOps Cloud Auditor & Profitability Governor", "Control Financiero & Costes")
+  [4] 🚀 Lanzar Panel de Mando y Control del Agente (art_45.py)
         table.add_row("[4]", "⚡ System Health Watchdog & Daemon Supervisor", "Puertos, Process & Memory")
         table.add_row("[5]", "💵 A2A Revenue Settlement & Escrow Monitor", "Liquidación de Transacciones")
         table.add_row("[6]", "🔬 Scientific Discovery & GraphRAG Memory", "I+D & Memoria Temporal")
