@@ -1,0 +1,10 @@
+version: '3.8'
+services:
+  ccia-swarm:
+    build: .
+    ports:
+      - "8000:8000"
+      - "8080:8080"
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+    restart: always
