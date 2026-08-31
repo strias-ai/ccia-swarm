@@ -11,9 +11,37 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.syntax import Syntax
 
+# Detección de motor vectorial local
+SQLITE_VEC_AVAILABLE = False
+ST_MODEL = None
+
+try:
+    import sqlite_vec
+    SQLITE_VEC_AVAILABLE = True
+except ImportError:
+    pass
+
+try:
+    from sentence_transformers import SentenceTransformer
+    # Carga diferida o inicialización rápida de modelo de embeddings ligero
+    ST_MODEL = SentenceTransformer('all-MiniLM-L6-v2')
+except Exception:
+    pass
+
 console = Console()
 DB_PATH = "/home/k1/ccia_workspace/university.db"
 OLLAMA_BASE_URL = "http://localhost:11434"
+
+def get_db_connection():
+    conn = sqlite3.connect(DB_PATH)
+    if SQLITE_VEC_AVAILABLE:
+        try:
+            conn.enable_load_extension(True)
+            sqlite_vec.load(conn)
+            conn.enable_load_extension(False)
+        except Exception:
+            pass
+    return conn
 
 def flush_stdin():
     try:
@@ -27,13 +55,13 @@ def pause():
     input("\n[ Presiona ENTER para continuar... ]")
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS github_product_proposals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            project_name TEXT,
+            project_name TEXT UNIQUE,
             problem_statement TEXT,
             target_audience TEXT,
             monetization_model TEXT,
@@ -43,6 +71,18 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    
+    if SQLITE_VEC_AVAILABLE:
+        try:
+            cursor.execute('''
+                CREATE VIRTUAL TABLE IF NOT EXISTS vec_product_proposals USING vec0(
+                    proposal_id INTEGER PRIMARY KEY,
+                    proposal_embedding float[384]
+                )
+            ''')
+        except Exception:
+            pass
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS github_pub_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,40 +111,22 @@ def init_db():
         )
     ''')
     
-    # Migración dinámica si la tabla ya existía con esquema antiguo
-    cols = [col[1] for col in cursor.execute("PRAGMA table_info(sla_performance_logs)").fetchall()]
-    needed_cols = [
-        ("artifact_id", "INTEGER"),
-        ("event_type", "TEXT"),
-        ("status", "TEXT"),
-        ("details", "TEXT")
-    ]
-    for col_name, col_type in needed_cols:
-        if col_name not in cols:
-            try:
-                cursor.execute(f"ALTER TABLE sla_performance_logs ADD COLUMN {col_name} {col_type}")
-            except Exception:
-                pass
-
     cursor.execute("INSERT OR IGNORE INTO ccia_agent_config (key, value) VALUES ('ollama_selected_model', 'huihui_ai/qwen2.5-coder-abliterate:7b')")
+    cursor.execute("INSERT OR IGNORE INTO ccia_agent_config (key, value) VALUES ('art_46_automation_mode', 'CHRONOS_EVENT_DRIVEN')")
     conn.commit()
     conn.close()
 
 def log_event(artifact_id, event_type, status, details=""):
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         c = conn.cursor()
         cols = [col[1] for col in c.execute("PRAGMA table_info(sla_performance_logs)").fetchall()]
         
         fields, values = [], []
-        if "artifact_id" in cols:
-            fields.append("artifact_id"); values.append(artifact_id)
-        if "event_type" in cols:
-            fields.append("event_type"); values.append(event_type)
-        if "status" in cols:
-            fields.append("status"); values.append(status)
-        if "details" in cols:
-            fields.append("details"); values.append(details)
+        if "artifact_id" in cols: fields.append("artifact_id"); values.append(artifact_id)
+        if "event_type" in cols: fields.append("event_type"); values.append(event_type)
+        if "status" in cols: fields.append("status"); values.append(status)
+        if "details" in cols: fields.append("details"); values.append(details)
 
         if fields:
             placeholders = ", ".join(["?"] * len(fields))
@@ -115,21 +137,21 @@ def log_event(artifact_id, event_type, status, details=""):
     except Exception:
         pass
 
-def get_selected_model():
+def get_config_val(key, default=""):
     init_db()
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         c = conn.cursor()
-        row = c.execute("SELECT value FROM ccia_agent_config WHERE key='ollama_selected_model'").fetchone()
+        row = c.execute("SELECT value FROM ccia_agent_config WHERE key=?", (key,)).fetchone()
         conn.close()
-        return row[0] if row else "huihui_ai/qwen2.5-coder-abliterate:7b"
+        return row[0] if row else default
     except Exception:
-        return "huihui_ai/qwen2.5-coder-abliterate:7b"
+        return default
 
-def set_selected_model(model_name):
-    conn = sqlite3.connect(DB_PATH)
+def set_config_val(key, val):
+    conn = get_db_connection()
     c = conn.cursor()
-    c.execute("REPLACE INTO ccia_agent_config (key, value) VALUES ('ollama_selected_model', ?)", (model_name,))
+    c.execute("REPLACE INTO ccia_agent_config (key, value) VALUES (?, ?)", (key, val))
     conn.commit()
     conn.close()
 
@@ -144,13 +166,8 @@ def fetch_ollama_models():
 
 def query_ollama(prompt):
     log_event(46, 'OLLAMA_INFERENCE_LOCK_ACQUIRED', 'ACTIVE', 'Reserva de slot en Chronos Scheduler')
-    selected_model = get_selected_model()
-    payload = json.dumps({
-        "model": selected_model,
-        "prompt": prompt,
-        "stream": False
-    }).encode('utf-8')
-    
+    selected_model = get_config_val('ollama_selected_model', 'huihui_ai/qwen2.5-coder-abliterate:7b')
+    payload = json.dumps({"model": selected_model, "prompt": prompt, "stream": False}).encode('utf-8')
     req = urllib.request.Request(f"{OLLAMA_BASE_URL}/api/generate", data=payload, headers={"Content-Type": "application/json"})
     start_time = time.time()
     try:
@@ -164,30 +181,36 @@ def query_ollama(prompt):
         console.print(f"[bold red]❌ Error en consulta a Ollama ({selected_model}): {e}[/bold red]")
         return None
 
+def get_existing_projects_memory():
+    conn = get_db_connection()
+    c = conn.cursor()
+    rows = c.execute("SELECT project_name FROM github_product_proposals").fetchall()
+    conn.close()
+    return [r[0] for r in rows if r[0]]
+
 def gather_internal_intelligence():
     signals = []
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         c = conn.cursor()
         tables = [t[0] for t in c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
         
         if "bounty_opportunities" in tables:
             cols = [col[1] for col in c.execute("PRAGMA table_info(bounty_opportunities)").fetchall()]
             if cols:
-                title_col = "title" if "title" in cols else cols[1] if len(cols) > 1 else cols[0]
-                reward_col = "reward" if "reward" in cols else "bounty_amount" if "bounty_amount" in cols else cols[-1]
-                rows = c.execute(f"SELECT {title_col}, {reward_col} FROM bounty_opportunities LIMIT 3").fetchall()
+                title_col = "title" if "title" in cols else "issue_title" if "issue_title" in cols else cols[1] if len(cols) > 1 else cols[0]
+                rows = c.execute(f"SELECT {title_col} FROM bounty_opportunities ORDER BY id DESC LIMIT 5").fetchall()
                 for r in rows:
-                    signals.append(f"Bounty: {r[0]} | Recompensa: {r[1]}")
+                    signals.append(f"Bounty Issue: {r[0]}")
                     
         if "ccia_market_intelligence" in tables:
             cols = [col[1] for col in c.execute("PRAGMA table_info(ccia_market_intelligence)").fetchall()]
             if cols:
                 topic_col = "topic" if "topic" in cols else cols[1] if len(cols) > 1 else cols[0]
-                payload_col = "payload" if "payload" in cols else "content" if "content" in cols else cols[-1]
-                rows = c.execute(f"SELECT {topic_col}, {payload_col} FROM ccia_market_intelligence ORDER BY id DESC LIMIT 3").fetchall()
+                payload_col = "payload" if "payload" in cols else "service_type" if "service_type" in cols else cols[-1]
+                rows = c.execute(f"SELECT {topic_col}, {payload_col} FROM ccia_market_intelligence ORDER BY id DESC LIMIT 5").fetchall()
                 for r in rows:
-                    signals.append(f"Market Intel [{r[0]}]: {r[1]}")
+                    signals.append(f"Market Signal [{r[0]}]: {r[1]}")
                     
         conn.close()
     except Exception as e:
@@ -202,12 +225,13 @@ def gather_internal_intelligence():
     return signals
 
 def save_proposal(sample_data):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     p_name = sample_data.get("project_name", "ccia-generic-agent")
     
     existing = c.execute("SELECT id FROM github_product_proposals WHERE project_name = ?", (p_name,)).fetchone()
     if existing:
+        pid = existing[0]
         c.execute("""
             UPDATE github_product_proposals 
             SET problem_statement=?, target_audience=?, monetization_model=?, market_score=?, proposed_stack=?
@@ -218,7 +242,7 @@ def save_proposal(sample_data):
             sample_data.get("monetization_model", ""),
             sample_data.get("market_score", 90),
             sample_data.get("proposed_stack", "Python 3.12"),
-            existing[0]
+            pid
         ))
     else:
         c.execute("""
@@ -233,26 +257,43 @@ def save_proposal(sample_data):
             sample_data.get("market_score", 90),
             sample_data.get("proposed_stack", "Python 3.12")
         ))
+        pid = c.lastrowid
+
+    if SQLITE_VEC_AVAILABLE and ST_MODEL:
+        try:
+            text_to_embed = f"{p_name} {sample_data.get('problem_statement', '')}"
+            embedding = ST_MODEL.encode(text_to_embed).tolist()
+            c.execute("INSERT OR REPLACE INTO vec_product_proposals(proposal_id, proposal_embedding) VALUES (?, ?)", (pid, json.dumps(embedding)))
+        except Exception:
+            pass
+
     conn.commit()
     conn.close()
 
 def scan_market_trends():
     init_db()
-    current_model = get_selected_model()
-    console.print(f"\n[cyan]🤖 Cerebro Activo: [bold yellow]{current_model}[/bold yellow] | Escaneando inteligencia en `ccia_market_intelligence` & `bounty_opportunities`...[/cyan]")
+    current_model = get_config_val('ollama_selected_model', 'huihui_ai/qwen2.5-coder-abliterate:7b')
+    memory_projects = get_existing_projects_memory()
+    
+    vec_status = "⚡ sqlite-vec ACTIVO" if SQLITE_VEC_AVAILABLE else "⚠️ sqlite-vec NO DETECTADO"
+    console.print(f"\n[cyan]🤖 Cerebro Activo: [bold yellow]{current_model}[/bold yellow] | [{vec_status}] | Memoria: [bold cyan]{len(memory_projects)} proyectos[/bold cyan][/cyan]")
     
     signals = gather_internal_intelligence()
     internal_data = "\n".join([f"- {s}" for s in signals])
+    existing_list = ", ".join(memory_projects) if memory_projects else "Ninguno"
     
     prompt = f"""Analiza las siguientes señales de mercado detectadas en el sistema CCiA:
 {internal_data}
 
-Genera una propuesta de proyecto Open-Source monetizable para GitHub. Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
+MEMORIA DE PROYECTOS EXISTENTES (NO DUPLICAR NI REPETIR CONCEPTOS SIMILARES):
+[{existing_list}]
+
+Genera una propuesta de proyecto Open-Source monetizable ÚNICA y NUEVA para GitHub.
+Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
 {{"project_name": "...", "problem_statement": "...", "target_audience": "...", "monetization_model": "...", "market_score": 95, "proposed_stack": "Python 3.12, FastAPI, MCP SDK, Docker"}}
 """
     
     response_text = query_ollama(prompt)
-    
     sample_data = None
     if response_text and "{" in response_text:
         try:
@@ -262,7 +303,7 @@ Genera una propuesta de proyecto Open-Source monetizable para GitHub. Responde �
             pass
 
     if not sample_data:
-        console.print("[yellow]⚠️ La respuesta LLM no entregó JSON puro. Aplicando estructura fallback validada...[/yellow]")
+        console.print("[yellow]⚠️ Aplicando fallback de propuesta validada...[/yellow]")
         sample_data = {
             "project_name": "ccia-mcp-stripe-agent",
             "problem_statement": "Falta de conectores nativos MCP para cobros automatizados A2A entre agentes de IA.",
@@ -283,7 +324,7 @@ Genera una propuesta de proyecto Open-Source monetizable para GitHub. Responde �
 
 def show_audit_logs():
     console.print("\n[bold cyan]📜 REGISTROS DE AUDITORÍA Y SLA (Chronos & Ollama Events)[/bold cyan]")
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     tables = [t[0] for t in c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
     
@@ -307,7 +348,7 @@ def show_audit_logs():
 
 def show_db_explorer():
     console.print("\n[bold cyan]🗄️ EXPLORADOR DE DATOS DE INTELIGENCIA DE MERCADO[/bold cyan]")
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     tables = [t[0] for t in c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
     
@@ -336,7 +377,7 @@ def show_db_explorer():
 
 def benchmark_ollama_model():
     models = fetch_ollama_models()
-    current = get_selected_model()
+    current = get_config_val('ollama_selected_model', 'huihui_ai/qwen2.5-coder-abliterate:7b')
     
     console.print(Panel(f"[bold cyan]🧠 GESTOR Y BENCHMARK DE CEREBROS OLLAMA[/bold cyan]\nModelo Activo: [bold yellow]{current}[/bold yellow]"))
     
@@ -366,11 +407,34 @@ def benchmark_ollama_model():
         console.print(f"[bold green]⚡ Respuesta recibida en {t1}s: {res}[/bold green]")
     elif choice.isdigit() and 1 <= int(choice) <= len(models):
         selected = models[int(choice) - 1]
-        set_selected_model(selected)
+        set_config_val('ollama_selected_model', selected)
         console.print(f"[bold green]✅ Cerebro activado: `{selected}`[/bold green]")
 
+def toggle_automation_mode():
+    current_mode = get_config_val('art_46_automation_mode', 'CHRONOS_EVENT_DRIVEN')
+    console.print("\n[bold cyan]⚙️ MANDO DE AUTOMATIZACIÓN Y ORQUESTACIÓN (ARTEFACTO 46)[/bold cyan]")
+    console.print(f"Modo Actual: [bold yellow]{current_mode}[/bold yellow]\n")
+    console.print("[1] 🧠 Event-Driven con Chronos (Art 28) [RECOMENDADO - Inferencia bajo demanda]")
+    console.print("[2] ⏱️ Daemon Autónomo (Escaneo periódico controlado por Chronos)")
+    console.print("[3] ⏸️ Desactivar Automatización (Solo ejecución manual por menú)")
+    
+    flush_stdin()
+    sel = input("\nSelecciona modo [1-3]: ").strip()
+    if sel == "1":
+        set_config_val('art_46_automation_mode', 'CHRONOS_EVENT_DRIVEN')
+        log_event(46, 'AUTOMATION_MODE_CHANGED', 'SUCCESS', 'Modo fijado en CHRONOS_EVENT_DRIVEN')
+        console.print("[bold green]✅ Modo fijado: Event-Driven con Chronos Scheduler (Art 28).[/bold green]")
+    elif sel == "2":
+        set_config_val('art_46_automation_mode', 'DAEMON_PERIODIC_CHRONOS')
+        log_event(46, 'AUTOMATION_MODE_CHANGED', 'SUCCESS', 'Modo fijado en DAEMON_PERIODIC_CHRONOS')
+        console.print("[bold green]✅ Modo fijado: Daemon controlado por slots de Chronos.[/bold green]")
+    elif sel == "3":
+        set_config_val('art_46_automation_mode', 'DISABLED')
+        log_event(46, 'AUTOMATION_MODE_CHANGED', 'SUCCESS', 'Automatización desactivada')
+        console.print("[bold yellow]⏸️ Automatización desactivada. El agente esperará comandos manuales.[/bold yellow]")
+
 def generate_spec_md():
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     rows = c.execute("SELECT id, project_name FROM github_product_proposals").fetchall()
     conn.close()
@@ -390,7 +454,7 @@ def generate_spec_md():
     sel = input("\nID de proyecto a visualizar spec (0 cancelar): ").strip()
     if sel.isdigit() and int(sel) > 0:
         pid = int(sel)
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         c = conn.cursor()
         p = c.execute("SELECT project_name, problem_statement, proposed_stack, target_audience, monetization_model FROM github_product_proposals WHERE id=?", (pid,)).fetchone()
         conn.close()
@@ -418,11 +482,14 @@ def display_menu():
     init_db()
     while True:
         try:
-            current_model = get_selected_model()
+            current_model = get_config_val('ollama_selected_model', 'huihui_ai/qwen2.5-coder-abliterate:7b')
+            auto_mode = get_config_val('art_46_automation_mode', 'CHRONOS_EVENT_DRIVEN')
+            vec_info = " (sqlite-vec Enabled)" if SQLITE_VEC_AVAILABLE else ""
+            
             console.print("\n" + "=" * 75)
             console.print(Panel(
                 f"[bold cyan]🧠 CCiA MARKET RESEARCH & PRODUCT ENGINE (ARTEFACTO 46)[/bold cyan]\n"
-                f"[white]Sincronizado con Chronos (Art 28), Intel DB & Cerebro Ollama: [bold yellow]{current_model}[/bold yellow][/white]",
+                f"Cerebro: [bold yellow]{current_model}[/bold yellow] | Modo: [bold green]{auto_mode}[/bold green]{vec_info}",
                 title="[bold yellow]MISSION CONTROL - PRODUCT ENGINE[/bold yellow]",
                 expand=True
             ))
@@ -435,17 +502,18 @@ def display_menu():
             console.print("[6] 🧠 Gestor de Cerebros Ollama & Test Latencia (28 Modelos)")
             console.print("[7] ⚡ Monitor de ROI & Cobertura Energética (NucBox-K11 35W/h)")
             console.print("[8] 📐 Generador de Spec & Arquitectura README para Proyectos")
+            console.print("[9] ⚙️ Mando de Automatización & Orquestación con Chronos (Art 28)")
             console.print("[0] ⬅️ Volver / Salir")
             
             flush_stdin()
-            choice = input("\nSelecciona una opción [0-8]: ").strip()
+            choice = input("\nSelecciona una opción [0-9]: ").strip()
             
             if choice == "1":
                 scan_market_trends()
                 pause()
 
             elif choice == "2":
-                conn = sqlite3.connect(DB_PATH)
+                conn = get_db_connection()
                 c = conn.cursor()
                 rows = c.execute("SELECT id, project_name, problem_statement, monetization_model, market_score, status FROM github_product_proposals").fetchall()
                 conn.close()
@@ -466,7 +534,7 @@ def display_menu():
                 flush_stdin()
                 sub = input("\nID para ver detalle completo (o ENTER para continuar): ").strip()
                 if sub.isdigit():
-                    conn = sqlite3.connect(DB_PATH)
+                    conn = get_db_connection()
                     c = conn.cursor()
                     p = c.execute("SELECT project_name, problem_statement, target_audience, monetization_model, market_score, proposed_stack, status FROM github_product_proposals WHERE id=?", (int(sub),)).fetchone()
                     conn.close()
@@ -482,7 +550,7 @@ def display_menu():
                 pause()
 
             elif choice == "3":
-                conn = sqlite3.connect(DB_PATH)
+                conn = get_db_connection()
                 c = conn.cursor()
                 rows = c.execute("SELECT id, project_name, problem_statement FROM github_product_proposals WHERE status='PENDING_REVIEW'").fetchall()
                 
@@ -542,6 +610,10 @@ def display_menu():
 
             elif choice == "8":
                 generate_spec_md()
+                pause()
+
+            elif choice == "9":
+                toggle_automation_mode()
                 pause()
 
             elif choice == "0":
