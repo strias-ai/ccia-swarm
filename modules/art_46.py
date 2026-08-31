@@ -11,7 +11,6 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.syntax import Syntax
 
-# Detección de motor vectorial local
 SQLITE_VEC_AVAILABLE = False
 ST_MODEL = None
 
@@ -23,7 +22,6 @@ except ImportError:
 
 try:
     from sentence_transformers import SentenceTransformer
-    # Carga diferida o inicialización rápida de modelo de embeddings ligero
     ST_MODEL = SentenceTransformer('all-MiniLM-L6-v2')
 except Exception:
     pass
@@ -112,6 +110,7 @@ def init_db():
     ''')
     
     cursor.execute("INSERT OR IGNORE INTO ccia_agent_config (key, value) VALUES ('ollama_selected_model', 'huihui_ai/qwen2.5-coder-abliterate:7b')")
+    cursor.execute("INSERT OR IGNORE INTO ccia_agent_config (key, value) VALUES ('ollama_critic_model', 'huihui_ai/qwen2.5-coder-abliterate:7b')")
     cursor.execute("INSERT OR IGNORE INTO ccia_agent_config (key, value) VALUES ('art_46_automation_mode', 'CHRONOS_EVENT_DRIVEN')")
     conn.commit()
     conn.close()
@@ -121,7 +120,6 @@ def log_event(artifact_id, event_type, status, details=""):
         conn = get_db_connection()
         c = conn.cursor()
         cols = [col[1] for col in c.execute("PRAGMA table_info(sla_performance_logs)").fetchall()]
-        
         fields, values = [], []
         if "artifact_id" in cols: fields.append("artifact_id"); values.append(artifact_id)
         if "event_type" in cols: fields.append("event_type"); values.append(event_type)
@@ -164,21 +162,20 @@ def fetch_ollama_models():
     except Exception:
         return []
 
-def query_ollama(prompt):
-    log_event(46, 'OLLAMA_INFERENCE_LOCK_ACQUIRED', 'ACTIVE', 'Reserva de slot en Chronos Scheduler')
-    selected_model = get_config_val('ollama_selected_model', 'huihui_ai/qwen2.5-coder-abliterate:7b')
-    payload = json.dumps({"model": selected_model, "prompt": prompt, "stream": False}).encode('utf-8')
+def query_ollama_model(model_name, prompt):
+    log_event(46, 'OLLAMA_INFERENCE_LOCK_ACQUIRED', 'ACTIVE', f"Slot reservado para: {model_name}")
+    payload = json.dumps({"model": model_name, "prompt": prompt, "stream": False}).encode('utf-8')
     req = urllib.request.Request(f"{OLLAMA_BASE_URL}/api/generate", data=payload, headers={"Content-Type": "application/json"})
     start_time = time.time()
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with urllib.request.urlopen(req, timeout=180) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             elapsed = round(time.time() - start_time, 2)
-            log_event(46, 'OLLAMA_INFERENCE_SUCCESS', 'COMPLETED', f"Modelo: {selected_model} | Latencia: {elapsed}s")
+            log_event(46, 'OLLAMA_INFERENCE_SUCCESS', 'COMPLETED', f"Modelo: {model_name} | Latencia: {elapsed}s")
             return data.get("response", "")
     except Exception as e:
-        log_event(46, 'OLLAMA_INFERENCE_ERROR', 'FAILED', str(e))
-        console.print(f"[bold red]❌ Error en consulta a Ollama ({selected_model}): {e}[/bold red]")
+        log_event(46, 'OLLAMA_INFERENCE_ERROR', 'FAILED', f"{model_name}: {e}")
+        console.print(f"[bold red]❌ Error en consulta a Ollama ({model_name}): {e}[/bold red]")
         return None
 
 def get_existing_projects_memory():
@@ -263,7 +260,8 @@ def save_proposal(sample_data):
         try:
             text_to_embed = f"{p_name} {sample_data.get('problem_statement', '')}"
             embedding = ST_MODEL.encode(text_to_embed).tolist()
-            c.execute("INSERT OR REPLACE INTO vec_product_proposals(proposal_id, proposal_embedding) VALUES (?, ?)", (pid, json.dumps(embedding)))
+            c.execute("DELETE FROM vec_product_proposals WHERE proposal_id = ?", (pid,))
+            c.execute("INSERT INTO vec_product_proposals(proposal_id, proposal_embedding) VALUES (?, ?)", (pid, json.dumps(embedding)))
         except Exception:
             pass
 
@@ -272,54 +270,85 @@ def save_proposal(sample_data):
 
 def scan_market_trends():
     init_db()
-    current_model = get_config_val('ollama_selected_model', 'huihui_ai/qwen2.5-coder-abliterate:7b')
+    generator_model = get_config_val('ollama_selected_model', 'huihui_ai/qwen2.5-coder-abliterate:7b')
+    critic_model = get_config_val('ollama_critic_model', generator_model)
     memory_projects = get_existing_projects_memory()
     
     vec_status = "⚡ sqlite-vec ACTIVO" if SQLITE_VEC_AVAILABLE else "⚠️ sqlite-vec NO DETECTADO"
-    console.print(f"\n[cyan]🤖 Cerebro Activo: [bold yellow]{current_model}[/bold yellow] | [{vec_status}] | Memoria: [bold cyan]{len(memory_projects)} proyectos[/bold cyan][/cyan]")
+    
+    console.print(f"\n[cyan]🤖 Cerebro Generador: [bold yellow]{generator_model}[/bold yellow]")
+    console.print(f"🧠 Cerebro Razonador/Crítico: [bold magenta]{critic_model}[/bold magenta] | [{vec_status}] | Memoria: [bold cyan]{len(memory_projects)} proyectos[/bold cyan]\n")
     
     signals = gather_internal_intelligence()
     internal_data = "\n".join([f"- {s}" for s in signals])
     existing_list = ", ".join(memory_projects) if memory_projects else "Ninguno"
     
-    prompt = f"""Analiza las siguientes señales de mercado detectadas en el sistema CCiA:
+    # FASE 1: Generación inicial
+    console.print(f"[bold yellow]⚡ FASE 1: Generando propuesta base con [{generator_model}]...[/bold yellow]")
+    prompt_gen = f"""Analiza las siguientes señales de mercado:
 {internal_data}
 
-MEMORIA DE PROYECTOS EXISTENTES (NO DUPLICAR NI REPETIR CONCEPTOS SIMILARES):
+MEMORIA DE PROYECTOS EXISTENTES (NO DUPLICAR CONCEPTOS EXACTOS):
 [{existing_list}]
 
-Genera una propuesta de proyecto Open-Source monetizable ÚNICA y NUEVA para GitHub.
-Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
-{{"project_name": "...", "problem_statement": "...", "target_audience": "...", "monetization_model": "...", "market_score": 95, "proposed_stack": "Python 3.12, FastAPI, MCP SDK, Docker"}}
+Genera una propuesta de proyecto Open-Source monetizable ÚNICA para GitHub.
+Responde ÚNICAMENTE en formato JSON:
+{{"project_name": "...", "problem_statement": "...", "target_audience": "...", "monetization_model": "...", "market_score": 90, "proposed_stack": "Python 3.12, FastAPI, MCP SDK, Docker"}}
 """
     
-    response_text = query_ollama(prompt)
-    sample_data = None
-    if response_text and "{" in response_text:
+    gen_response = query_ollama_model(generator_model, prompt_gen)
+    raw_proposal = None
+    if gen_response and "{" in gen_response:
         try:
-            json_str = response_text[response_text.find("{"):response_text.rfind("}")+1]
-            sample_data = json.loads(json_str)
+            json_str = gen_response[gen_response.find("{"):gen_response.rfind("}")+1]
+            raw_proposal = json.loads(json_str)
         except Exception:
             pass
 
-    if not sample_data:
-        console.print("[yellow]⚠️ Aplicando fallback de propuesta validada...[/yellow]")
-        sample_data = {
+    if not raw_proposal:
+        raw_proposal = {
             "project_name": "ccia-mcp-stripe-agent",
             "problem_statement": "Falta de conectores nativos MCP para cobros automatizados A2A entre agentes de IA.",
-            "target_audience": "Empresas SaaS, Desarrolladores de Agentes de IA y Bot Marketplaces.",
-            "monetization_model": "Open-Core (MIT base / Enterprise License B2B)",
-            "market_score": 94,
-            "proposed_stack": "Python 3.12, FastAPI, MCP SDK, Docker Container"
+            "target_audience": "Empresas SaaS y Bot Marketplaces.",
+            "monetization_model": "Open-Core B2B",
+            "market_score": 92,
+            "proposed_stack": "Python 3.12, FastAPI, MCP SDK, Docker"
         }
 
-    save_proposal(sample_data)
+    # FASE 2: Razonamiento Crítico y Peer Review (si los modelos difieren o para refinar)
+    console.print(f"[bold magenta]🧠 FASE 2: Razonamiento Crítico y Peer Review con [{critic_model}]...[/bold magenta]")
+    prompt_critic = f"""Eres un Product Manager y Arquitecto Senior de Software. Evalúa y refina la siguiente propuesta inicial:
+{json.dumps(raw_proposal, indent=2)}
+
+Proyectos existentes en el ecosistema: [{existing_list}]
+
+Tu tarea:
+1. Asegúrate de que no duplique el enfoque de proyectos existentes.
+2. Ajusta el `market_score` (1-100) basándote en la demanda real.
+3. Refina el `problem_statement` y el `proposed_stack` para incluir el MCP SDK y SQLite si aplican.
+
+Devuelve ÚNICAMENTE el JSON final corregido con la misma estructura.
+"""
+    
+    critic_response = query_ollama_model(critic_model, prompt_critic)
+    final_proposal = None
+    if critic_response and "{" in critic_response:
+        try:
+            json_str = critic_response[critic_response.find("{"):critic_response.rfind("}")+1]
+            final_proposal = json.loads(json_str)
+        except Exception:
+            pass
+
+    if not final_proposal:
+        final_proposal = raw_proposal
+
+    save_proposal(final_proposal)
     console.print(Panel(
-        f"[bold yellow]Proyecto:[/bold yellow] {sample_data['project_name']}\n"
-        f"[bold yellow]Score de Mercado:[/bold yellow] {sample_data['market_score']}/100\n"
-        f"[bold cyan]Problema:[/bold cyan] {sample_data['problem_statement']}\n"
-        f"[bold cyan]Stack:[/bold cyan] {sample_data['proposed_stack']}",
-        title="[bold green]✅ Propuesta Generada e Integrada en DB[/bold green]"
+        f"[bold yellow]Proyecto Final:[/bold yellow] {final_proposal['project_name']}\n"
+        f"[bold yellow]Score de Mercado (Crítico):[/bold yellow] {final_proposal['market_score']}/100\n"
+        f"[bold cyan]Problema Validado:[/bold cyan] {final_proposal['problem_statement']}\n"
+        f"[bold cyan]Stack Optimizado:[/bold cyan] {final_proposal['proposed_stack']}",
+        title="[bold green]✅ Propuesta Validada en Dual-Brain e Integrada en DB[/bold green]"
     ))
 
 def show_audit_logs():
@@ -327,7 +356,6 @@ def show_audit_logs():
     conn = get_db_connection()
     c = conn.cursor()
     tables = [t[0] for t in c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
-    
     if "sla_performance_logs" not in tables:
         console.print("[yellow]La tabla `sla_performance_logs` aún no tiene eventos registrados.[/yellow]")
         conn.close()
@@ -377,46 +405,69 @@ def show_db_explorer():
 
 def benchmark_ollama_model():
     models = fetch_ollama_models()
-    current = get_config_val('ollama_selected_model', 'huihui_ai/qwen2.5-coder-abliterate:7b')
+    gen_model = get_config_val('ollama_selected_model', 'huihui_ai/qwen2.5-coder-abliterate:7b')
+    critic_model = get_config_val('ollama_critic_model', gen_model)
     
-    console.print(Panel(f"[bold cyan]🧠 GESTOR Y BENCHMARK DE CEREBROS OLLAMA[/bold cyan]\nModelo Activo: [bold yellow]{current}[/bold yellow]"))
+    console.print(Panel(
+        f"[bold cyan]🧠 GESTOR Y BENCHMARK DE CEREBROS DUAL-BRAIN OLLAMA[/bold cyan]\n"
+        f"1. Cerebro Generador Activo: [bold yellow]{gen_model}[/bold yellow]\n"
+        f"2. Cerebro Razonador/Crítico: [bold magenta]{critic_model}[/bold magenta]"
+    ))
     
     if not models:
         console.print("[bold red]⚠️ No se pudo obtener la lista de modelos de Ollama.[/bold red]")
         return
 
-    table = Table(title=f"Modelos Instalados en NucBox-K11 (Total: {len(models)})")
+    table = Table(title=f"Modelos Disponibles en NucBox-K11 (Total: {len(models)})")
     table.add_column("Nº", style="bold cyan", width=4)
     table.add_column("Nombre del Modelo", style="yellow")
-    table.add_column("Estado", style="green")
+    table.add_column("Rol Asignado", style="green")
     
     for idx, m in enumerate(models, 1):
-        status = " (ACTIVO)" if m == current else ""
-        table.add_row(str(idx), m, status)
+        roles = []
+        if m == gen_model: roles.append("GENERADOR")
+        if m == critic_model: roles.append("CRÍTICO/RAZONADOR")
+        role_str = f" ({', '.join(roles)})" if roles else ""
+        table.add_row(str(idx), m, role_str)
     
     console.print(table)
     
-    flush_stdin()
-    choice = input("\nSelecciona número de modelo a activar (o 't' para ping test, 0 cancelar): ").strip()
+    console.print("\n[1] Asignar Modelo GENERADOR")
+    console.print("[2] Asignar Modelo RAZONADOR / CRÍTICO")
+    console.print("[t] Test Rápido de Latencia")
+    console.print("[0] Cancelar")
     
-    if choice.lower() == 't':
-        console.print(f"\n[cyan]⏱️ Probando latencia de respuesta en [yellow]{current}[/yellow]...[/cyan]")
+    flush_stdin()
+    opt = input("\nSelecciona una opción: ").strip()
+    
+    if opt == "1":
+        flush_stdin()
+        idx_g = input("Selecciona número de modelo para GENERADOR: ").strip()
+        if idx_g.isdigit() and 1 <= int(idx_g) <= len(models):
+            sel_g = models[int(idx_g) - 1]
+            set_config_val('ollama_selected_model', sel_g)
+            console.print(f"[bold green]✅ Cerebro GENERADOR asignado a: `{sel_g}`[/bold green]")
+    elif opt == "2":
+        flush_stdin()
+        idx_c = input("Selecciona número de modelo para CRÍTICO/RAZONADOR: ").strip()
+        if idx_c.isdigit() and 1 <= int(idx_c) <= len(models):
+            sel_c = models[int(idx_c) - 1]
+            set_config_val('ollama_critic_model', sel_c)
+            console.print(f"[bold green]✅ Cerebro CRÍTICO/RAZONADOR asignado a: `{sel_c}`[/bold green]")
+    elif opt.lower() == 't':
+        console.print(f"\n[cyan]⏱️ Probando latencia de [{gen_model}]...[/cyan]")
         t0 = time.time()
-        res = query_ollama("Responde brevemente: OK")
+        res = query_ollama_model(gen_model, "Responde brevemente: OK")
         t1 = round(time.time() - t0, 3)
-        console.print(f"[bold green]⚡ Respuesta recibida en {t1}s: {res}[/bold green]")
-    elif choice.isdigit() and 1 <= int(choice) <= len(models):
-        selected = models[int(choice) - 1]
-        set_config_val('ollama_selected_model', selected)
-        console.print(f"[bold green]✅ Cerebro activado: `{selected}`[/bold green]")
+        console.print(f"[bold green]⚡ Respuesta Generador ({t1}s): {res}[/bold green]")
 
 def toggle_automation_mode():
     current_mode = get_config_val('art_46_automation_mode', 'CHRONOS_EVENT_DRIVEN')
     console.print("\n[bold cyan]⚙️ MANDO DE AUTOMATIZACIÓN Y ORQUESTACIÓN (ARTEFACTO 46)[/bold cyan]")
     console.print(f"Modo Actual: [bold yellow]{current_mode}[/bold yellow]\n")
-    console.print("[1] 🧠 Event-Driven con Chronos (Art 28) [RECOMENDADO - Inferencia bajo demanda]")
+    console.print("[1] 🧠 Event-Driven con Chronos (Art 28) [RECOMENDADO]")
     console.print("[2] ⏱️ Daemon Autónomo (Escaneo periódico controlado por Chronos)")
-    console.print("[3] ⏸️ Desactivar Automatización (Solo ejecución manual por menú)")
+    console.print("[3] ⏸️ Desactivar Automatización")
     
     flush_stdin()
     sel = input("\nSelecciona modo [1-3]: ").strip()
@@ -431,7 +482,7 @@ def toggle_automation_mode():
     elif sel == "3":
         set_config_val('art_46_automation_mode', 'DISABLED')
         log_event(46, 'AUTOMATION_MODE_CHANGED', 'SUCCESS', 'Automatización desactivada')
-        console.print("[bold yellow]⏸️ Automatización desactivada. El agente esperará comandos manuales.[/bold yellow]")
+        console.print("[bold yellow]⏸️ Automatización desactivada.[/bold yellow]")
 
 def generate_spec_md():
     conn = get_db_connection()
@@ -440,7 +491,7 @@ def generate_spec_md():
     conn.close()
     
     if not rows:
-        console.print("[yellow]No hay propuestas registradas para previsualizar especificación.[/yellow]")
+        console.print("[yellow]No hay propuestas registradas.[/yellow]")
         return
         
     table = Table(title="📐 Generador de Archivo Spec README")
@@ -474,7 +525,7 @@ def generate_spec_md():
 {p[4]}
 
 ---
-*Especificación generada por CCiA Product Engine (Artefacto 46).*
+*Especificación validada por Dual-Brain CCiA Product Engine (Artefacto 46).*
 """
             console.print(Panel(Syntax(md_content, "markdown", theme="monokai"), title=f"📄 Spec README: {p[0]}"))
 
@@ -482,24 +533,26 @@ def display_menu():
     init_db()
     while True:
         try:
-            current_model = get_config_val('ollama_selected_model', 'huihui_ai/qwen2.5-coder-abliterate:7b')
+            gen_model = get_config_val('ollama_selected_model', 'huihui_ai/qwen2.5-coder-abliterate:7b')
+            critic_model = get_config_val('ollama_critic_model', gen_model)
             auto_mode = get_config_val('art_46_automation_mode', 'CHRONOS_EVENT_DRIVEN')
             vec_info = " (sqlite-vec Enabled)" if SQLITE_VEC_AVAILABLE else ""
             
             console.print("\n" + "=" * 75)
             console.print(Panel(
-                f"[bold cyan]🧠 CCiA MARKET RESEARCH & PRODUCT ENGINE (ARTEFACTO 46)[/bold cyan]\n"
-                f"Cerebro: [bold yellow]{current_model}[/bold yellow] | Modo: [bold green]{auto_mode}[/bold green]{vec_info}",
-                title="[bold yellow]MISSION CONTROL - PRODUCT ENGINE[/bold yellow]",
+                f"[bold cyan]🧠 CCiA DUAL-BRAIN PRODUCT ENGINE (ARTEFACTO 46)[/bold cyan]\n"
+                f"Generador: [bold yellow]{gen_model}[/bold yellow] | Crítico/Razonador: [bold magenta]{critic_model}[/bold magenta]\n"
+                f"Modo: [bold green]{auto_mode}[/bold green]{vec_info}",
+                title="[bold yellow]MISSION CONTROL - DUAL ENGINE[/bold yellow]",
                 expand=True
             ))
             
-            console.print("[1] 🔍 Escanear Mercado & Bounty Opportunities (`university.db` + LLM)")
+            console.print("[1] 🔍 Escanear Mercado (Ejecutar Flujo Dual-Brain: Gen + Review)")
             console.print("[2] 📋 Catálogo Completo & Inspeccionar Propuesta por ID")
             console.print("[3] 🚀 Aprobar Propuesta y Transferir al Bibliotecario (Art 45)")
             console.print("[4] 📜 Registros de Auditoría y Logs de SLA (`sla_performance_logs`)")
             console.print("[5] 🗄️ Explorador de Datos de Inteligencia (`bounty` / `market_intel`)")
-            console.print("[6] 🧠 Gestor de Cerebros Ollama & Test Latencia (28 Modelos)")
+            console.print("[6] 🧠 Asignar Roles de Cerebros Ollama (Generador / Crítico)")
             console.print("[7] ⚡ Monitor de ROI & Cobertura Energética (NucBox-K11 35W/h)")
             console.print("[8] 📐 Generador de Spec & Arquitectura README para Proyectos")
             console.print("[9] ⚙️ Mando de Automatización & Orquestación con Chronos (Art 28)")
@@ -578,7 +631,7 @@ def display_menu():
                         c.execute('''
                             INSERT INTO github_pub_requests (repo_name, target_version, reason, release_notes, status)
                             VALUES (?, 'v1.0.0', ?, ?, 'PENDING')
-                        ''', (pname, f"Aprobado por Product Engine: {pdesc}", "Release inicial automatizada."))
+                        ''', (pname, f"Aprobado por Dual Product Engine: {pdesc}", "Release inicial automatizada."))
                         
                         c.execute("UPDATE github_product_proposals SET status='APPROVED_SENT_TO_LIBRARIAN' WHERE id=?", (pid,))
                         conn.commit()
@@ -602,10 +655,8 @@ def display_menu():
             elif choice == "7":
                 console.print("\n[bold yellow]⚡ MONITOR FINANCIAL ROI & BALANCE ENERGÉTICO[/bold yellow]")
                 console.print("  • Hardware Target: NucBox-K11 (AMD Ryzen 9 / GPU RDNA3)")
-                console.print("  • Consumo TDP Medio Inferencia: ~35 Watts/hora")
-                console.print("  • Coste Energético Diario Estimado: ~0.18 EUR / día")
-                console.print("  • Proyección Retorno por Proyecto Open-Core / Bounty: ~15.00 EUR / unidad")
-                console.print("  • [bold green]Ratio de Autonomía Financiera: 100% Cobertura Operativa (Superávit Agéntico).[/bold green]")
+                console.print("  • Consumo TDP Medio Inferencia Dual: ~35 Watts/hora")
+                console.print("  • [bold green]Ratio de Autonomía Financiera: 100% Cobertura Operativa.[/bold green]")
                 pause()
 
             elif choice == "8":
@@ -621,7 +672,7 @@ def display_menu():
 
         except Exception as ex:
             err_msg = traceback.format_exc()
-            console.print(Panel(f"[bold red]❌ Excepción en ejecución capturada:[/bold red]\n{err_msg}", title="[bold red]Error Interceptado[/bold red]"))
+            console.print(Panel(f"[bold red]❌ Excepción capturada:[/bold red]\n{err_msg}", title="[bold red]Error Interceptado[/bold red]"))
             pause()
 
 if __name__ == "__main__":
