@@ -113,9 +113,14 @@ def run_sync_audit():
         
         pending_count = cursor.execute("SELECT COUNT(*) FROM github_pub_requests WHERE status='PENDING'").fetchone()[0]
         
-        if pending_count == 0:
+        already_processed = cursor.execute(
+            "SELECT COUNT(*) FROM github_pub_requests WHERE repo_name='ccia-swarm' AND (reason LIKE ? OR target_version=?) AND status='PUBLISHED_AND_DISPATCHED'",
+            (f"%{local_sha}%", f"v3.1.0-art{local_arts}")
+        ).fetchone()[0]
+
+        if pending_count == 0 and already_processed == 0:
             cursor.execute('''
-                INSERT OR IGNORE INTO github_pub_requests (repo_name, target_version, reason, release_notes, status)
+                INSERT INTO github_pub_requests (repo_name, target_version, reason, release_notes, status)
                 VALUES (?, ?, ?, ?, ?)
             ''', (
                 "ccia-swarm",
@@ -126,6 +131,8 @@ def run_sync_audit():
             ))
             diff_detected = 1
             audit_msg = f"Diferencia detectada. Creada solicitud de versión v3.1.0-art{local_arts}."
+        elif already_processed > 0:
+            audit_msg = f"Repositorio local 100% sincronizado con GitHub (SHA {local_sha} ya publicado)."
         else:
             audit_msg = "Repositorio remoto auditado. Existen solicitudes pendientes de aprobación."
     else:
@@ -268,7 +275,8 @@ def display_menu():
                         push_res = subprocess.run(["git", "push", "origin", "main"], cwd=WORKSPACE_DIR, capture_output=True, text=True)
                         
                         c.execute("UPDATE github_pub_requests SET status='PUBLISHED_AND_DISPATCHED' WHERE id=?", (req_id,))
-                        c.execute("UPDATE github_catalog SET current_version=?, last_synced_at=CURRENT_TIMESTAMP WHERE repo_name=?", (ver, repo))
+                        new_sha = get_local_commit_sha()
+                        c.execute("UPDATE github_catalog SET current_version=?, commit_sha=?, last_synced_at=CURRENT_TIMESTAMP WHERE repo_name=?", (ver, new_sha, repo))
                         conn.commit()
                         console.print("[bold green]🎉 Publicación completada y sincronizada con GitHub con éxito.[/bold green]")
                     except Exception as e:
