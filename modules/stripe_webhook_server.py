@@ -1,83 +1,81 @@
-# -*- coding: utf-8 -*-
-"""
-CCiA Stripe Webhook Server
-Recibe notificaciones en tiempo real cuando un cliente completa un pago.
-"""
-
-import os
-import sys
+#!/usr/bin/env python3
+from flask import Flask, request, jsonify
 import sqlite3
-import json
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import stripe
+import time
+import os
+
+app = Flask(__name__)
 
 DB_PATH = "/home/k1/ccia_workspace/university.db"
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 
-def load_env():
-    env_file = "/home/k1/ccia_workspace/.env"
-    if os.path.exists(env_file):
-        with open(env_file, "r") as f:
-            for line in f:
-                if "=" in line and not line.startswith("#"):
-                    k, v = line.strip().split("=", 1)
-                    os.environ[k.strip()] = v.strip().strip('"').strip("'")
+stripe.api_key = STRIPE_SECRET_KEY
 
-class StripeWebhookHandler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        load_env()
-        secret_key = os.getenv("STRIPE_SECRET_KEY", "")
-        webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-        
-        content_length = int(self.headers.get('Content-Length', 0))
-        payload = self.rfile.read(content_length)
-        sig_header = self.headers.get('Stripe-Signature', '')
-        
-        try:
-            import stripe
-            stripe.api_key = secret_key
-            if webhook_secret:
-                event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
-            else:
-                event = json.loads(payload.decode('utf-8'))
-                
-            event_type = event.get('type')
-            print(f"📥 Evento Recibido de Stripe: {event_type}")
-            
-            if event_type in ['checkout.session.completed', 'payment_intent.succeeded']:
-                data = event['data']['object']
-                customer_email = data.get('customer_details', {}).get('email') or data.get('receipt_email')
-                amount = data.get('amount_total', 0) / 100.0 or data.get('amount', 0) / 100.0
-                currency = data.get('currency', 'eur').upper()
-                
-                # Registrar en la base de datos de telemetría y activar cliente
-                conn = sqlite3.connect(DB_PATH)
-                cur = conn.cursor()
-                cur.execute("""
-                    INSERT INTO vant_agent_telemetry (agent_name, action, status, payload_raw)
-                    VALUES ('StripeWebhook', 'PAYMENT_RECEIVED', 'SUCCESS', ?)
-                """, (json.dumps({"email": customer_email, "amount": amount, "currency": currency}),))
-                
-                cur.execute("""
-                    UPDATE microsaas_tenants SET status='ACTIVE' WHERE company_name LIKE ? OR domain LIKE ?
-                """, (f"%{customer_email}%", f"%{customer_email}%"))
-                
-                conn.commit()
-                conn.close()
-                print(f"🟢 ¡PAGO CONFIRMADO! {amount} {currency} de {customer_email}. Inquilino activado.")
+def record_real_payment(event_id, event_type, amount_usd, tx_id):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS processed_stripe_events_v2 (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id TEXT UNIQUE,
+            event_type TEXT,
+            amount_eur REAL,
+            amount_usd REAL,
+            status TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    c.execute("""
+        INSERT OR IGNORE INTO processed_stripe_events_v2 (event_id, event_type, amount_eur, amount_usd, status)
+        VALUES (?, ?, ?, ?, 'COMPLETED')
+    """, (event_id, event_type, amount_usd * 0.92, amount_usd))
+    
+    c.execute("""
+        INSERT INTO revenue_settlements (source_event, amount_usd, agent_recipient, status, mode, signature_verified, tx_hash)
+        VALUES (?, ?, 'CCIA_TREASURY_MAIN', 'SETTLED', 'REAL', 1, ?)
+    """, (f"STRIPE_{event_type}", amount_usd, tx_id))
+    
+    conn.commit()
+    conn.close()
+    print(f"✅ [STRIPE LIVE] Pago Real Registrado: ${amount_usd:.2f} USD (ID: {event_id})")
 
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b'{"status": "success"}')
-        except Exception as e:
-            print(f"⚠️ Error procesando Webhook: {e}")
-            self.send_response(400)
-            self.end_headers()
-            self.wfile.write(str(e).encode('utf-8'))
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({
+        "status": "online",
+        "service": "CCiA Stripe Live Webhook Engine",
+        "mode": "PRODUCTION_REAL",
+        "port": 8088
+    }), 200
 
-def run_server(port=4242):
-    server_address = ('', port)
-    httpd = HTTPServer(server_address, StripeWebhookHandler)
-    print(f"🚀 Servidor de Webhooks escuchando en puerto {port}...")
-    httpd.serve_forever()
+@app.route('/v1/stripe/webhook', methods=['POST'])
+@app.route('/webhook', methods=['POST'])
+def stripe_webhook():
+    payload = request.get_data(as_text=True)
+    sig_header = request.headers.get('Stripe-Signature', None)
+
+    if not STRIPE_WEBHOOK_SECRET:
+        return jsonify({"status": "error", "reason": "Webhook secret missing"}), 400
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, STRIPE_WEBHOOK_SECRET
+        )
+    except Exception as e:
+        return jsonify({"status": "error", "reason": str(e)}), 400
+
+    event_type = event['type']
+    event_id = event['id']
+    
+    if event_type in ['payment_intent.succeeded', 'checkout.session.completed']:
+        data_obj = event['data']['object']
+        amount_usd = data_obj.get('amount_received', data_obj.get('amount_total', 0)) / 100.0
+        tx_id = data_obj.get('id', event_id)
+        record_real_payment(event_id, event_type, amount_usd, tx_id)
+
+    return jsonify({"status": "success", "event_id": event_id}), 200
 
 if __name__ == '__main__':
-    run_server()
+    app.run(host='0.0.0.0', port=8088)
