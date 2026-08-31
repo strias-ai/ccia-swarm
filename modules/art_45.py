@@ -115,7 +115,7 @@ def run_sync_audit():
         
         if pending_count == 0:
             cursor.execute('''
-                INSERT INTO github_pub_requests (repo_name, target_version, reason, release_notes, status)
+                INSERT OR IGNORE INTO github_pub_requests (repo_name, target_version, reason, release_notes, status)
                 VALUES (?, ?, ?, ?, ?)
             ''', (
                 "ccia-swarm",
