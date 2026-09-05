@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-CCiA Master Orchestrator: Chronos Scheduler v7.0 (40 Artefactos)
-Orquestador principal del enjambre autónomo: DevSecOps, FinOps, Sentinel, Tesorería y Gateway A2A (x402).
+CCiA Master Orchestrator: Chronos Scheduler v19.0 (61 Artefactos)
+Orquestador principal del enjambre autónomo: DevSecOps, FinOps, Sentinel, Tesorería,
+Gateway A2A, Ciencia, PQC, GraphRAG, Mesh, Ollama Scheduler, Email Dispatcher & Dual-Brain CRM.
 """
 
 import time
@@ -16,7 +17,7 @@ def log(msg):
 def run_module(path):
     if os.path.exists(path):
         try:
-            res = subprocess.run([sys.executable, path], capture_output=True, text=True, timeout=60)
+            res = subprocess.run([sys.executable, path], capture_output=True, text=True, timeout=120)
             if res.stdout:
                 for line in res.stdout.strip().split("\n"):
                     print(line)
@@ -28,7 +29,7 @@ def run_module(path):
         print(f"  ⚠️ Módulo no encontrado: {path}")
 
 def main():
-    print("⏰ Chronos Scheduler v7.0 iniciado (40 Artefactos)...")
+    print("⏰ Chronos Scheduler v19.0 iniciado (61 Artefactos activos)...")
     
     # 1. Sincronización Real con Stripe & FinOps (Artefactos 33 y 34)
     run_module("/home/k1/ccia_workspace/modules/stripe_live_sync.py")
@@ -48,16 +49,28 @@ def main():
     # 6. Gateway de Protocolo A2A & Catálogo Monetizable (Artefacto 40)
     run_module("/home/k1/ccia_workspace/modules/a2a_market_gateway.py")
 
+    # 7. Asignador de Turnos Ollama & Auditor de Conectividad (Artefacto 61)
+    run_module("/home/k1/ccia_workspace/modules/art_61.py")
+
+    # 8. Servidor de Email Autónomo & Ollama Task Dispatcher (Artefacto 59)
+    run_module("/home/k1/ccia_workspace/modules/art_59.py")
+
+    # 9. CRM Master Email, Dual-Brain Debate & Gateway I2I (Artefacto 60)
+    run_module("/home/k1/ccia_workspace/modules/art_60.py")
+
 if __name__ == "__main__":
     main()
 
 # --- Módulos Ciencia, PQC, GraphRAG y Mesh P2P (Artefactos 41-44) ---
-from ccia_science_discovery import run_science_engine
-from ccia_quantum_sentinel import run_quantum_guard
-from ccia_cognition_graph import run_cognition_graph
-from ccia_mesh_orchestrator import run_mesh_subcontractor
+try:
+    from ccia_science_discovery import run_science_engine
+    from ccia_quantum_sentinel import run_quantum_guard
+    from ccia_cognition_graph import run_cognition_graph
+    from ccia_mesh_orchestrator import run_mesh_subcontractor
 
-run_science_engine()
-run_quantum_guard()
-run_cognition_graph()
-run_mesh_subcontractor()
+    run_science_engine()
+    run_quantum_guard()
+    run_cognition_graph()
+    run_mesh_subcontractor()
+except Exception as e:
+    print(f"  ⚠️ Notificación de submódulos P2P/Science/PQC: {e}")
