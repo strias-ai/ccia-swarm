@@ -153,67 +153,49 @@ def fetch_remote_repo_info(repo_name, token):
         return None
 
 def run_sync_audit():
-    token = os.environ.get("GITHUB_TOKEN", "")
-    init_db()
-    
-    snapshot_all_artifacts()
-    local_sha = get_local_commit_sha()
-    local_arts = count_local_artifacts()
-    
-    remote_data = fetch_remote_repo_info("ccia-swarm", token)
-    
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    diff_detected = 0
-    audit_msg = ""
-    
-    if remote_data:
-        repo_url = remote_data.get("html_url", f"https://github.com/{GH_USER}/ccia-swarm")
-        
-        cursor.execute("""
-            INSERT INTO github_catalog (repo_name, current_version, commit_sha, remote_url, last_synced_at)
-            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(repo_name) DO UPDATE SET
-                current_version=excluded.current_version,
-                commit_sha=excluded.commit_sha,
-                last_synced_at=CURRENT_TIMESTAMP
-        """, ("ccia-swarm", f"v3.0 (Arts: {local_arts})", local_sha, repo_url))
-        
-        pending_count = cursor.execute("SELECT COUNT(*) FROM github_pub_requests WHERE status='PENDING'").fetchone()[0]
-        
-        already_processed = cursor.execute(
-            "SELECT COUNT(*) FROM github_pub_requests WHERE repo_name='ccia-swarm' AND (reason LIKE ? OR target_version=?) AND status='PUBLISHED_AND_DISPATCHED'",
-            (f"%{local_sha}%", f"v3.1.0-art{local_arts}")
-        ).fetchone()[0]
+    """Auditoría avanzada de sincronización Git & DB para CCiA."""
+    workspace_dir = "/home/k1/ccia_workspace"
+    db_path = os.path.join(workspace_dir, "university.db")
+    modules_dir = os.path.join(workspace_dir, "modules")
 
-        if pending_count == 0 and already_processed == 0:
-            cursor.execute("""
-                INSERT INTO github_pub_requests (repo_name, target_version, reason, release_notes, status)
-                VALUES (?, ?, ?, ?, ?)
-            """, (
-                "ccia-swarm",
-                f"v3.1.0-art{local_arts}",
-                f"Detectados {local_arts} artefactos locales certificados (SHA: {local_sha}). Sincronizacion disponible.",
-                "Release automatizada: Capsula del Tiempo SHA256, Multi-Engine Sandbox, perf profiling y RAG vectorial integrados.",
-                "PENDING"
-            ))
-            diff_detected = 1
-            audit_msg = f"Diferencia detectada. Creada solicitud de version v3.1.0-art{local_arts}."
-        elif already_processed > 0:
-            audit_msg = f"Repositorio local 100% sincronizado con GitHub (SHA {local_sha} ya publicado)."
-        else:
-            audit_msg = "Repositorio remoto auditado. Existen solicitudes pendientes de aprobacion."
-    else:
-        audit_msg = "Consulta local completada. La API de GitHub no devolvio cambios remotos."
-
-    cursor.execute("""
-        INSERT INTO github_sync_audit (local_artifacts_count, remote_artifacts_count, diff_detected, audit_log)
-        VALUES (?, ?, ?, ?)
-    """, (local_arts, local_arts, diff_detected, audit_msg))
+    console.print("\n[bold cyan]🔍 AUDITORÍA DE SINCRONIZACIÓN Y ESTADO DE ARTEFACTOS[/bold cyan]")
     
-    conn.commit()
+    # 1. Conteo de artefactos
+    physical_files = [f for f in os.listdir(modules_dir) if f.startswith("art_") and f.endswith(".py")] if os.path.exists(modules_dir) else []
+    
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    db_count = c.execute("SELECT COUNT(*) FROM ccia_artifact_manifests").fetchone()[0]
     conn.close()
+
+    console.print(f"  • Artefactos registrados en DB (university.db): [bold yellow]{db_count}[/bold yellow]")
+    console.print(f"  • Módulos Python físicos en /modules:         [bold green]{len(physical_files)}[/bold green]")
+
+    # 2. Estado de Git en workspace_dir
+    try:
+        git_head = subprocess.getoutput(f"git -C {workspace_dir} rev-parse --short HEAD")
+        git_status = subprocess.getoutput(f"git -C {workspace_dir} status -s").strip()
+        git_unpushed = subprocess.getoutput(f"git -C {workspace_dir} log origin/main..HEAD --oneline 2>/dev/null").strip()
+
+        console.print(f"  • SHA Local HEAD: [magenta]{git_head}[/magenta]")
+
+        if git_status:
+            console.print("\n[bold yellow]⚠️ Cambios locales pendientes de commit (Working Tree Sucio):[/bold yellow]")
+            for line in git_status.split("\n"):
+                console.print(f"    {line}")
+        else:
+            console.print("  • Área de trabajo local: [bold green]Limpia (Sin cambios pendientes de commit)[/bold green]")
+
+        if git_unpushed:
+            console.print("\n[bold orange3]🚀 Commits locales pendientes de subir a GitHub (git push):[/bold orange3]")
+            for line in git_unpushed.split("\n"):
+                console.print(f"    {line}")
+        else:
+            console.print("  • Estado con remoto GitHub: [bold green]100% Sincronizado[/bold green]")
+
+    except Exception as e:
+        console.print(f"[bold red]❌ Error al consultar estado de Git:[/bold red] {e}")
+
 
 def run_auto_publish():
     total_arts, changes = snapshot_all_artifacts()
