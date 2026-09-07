@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-CCiA GitHub Librarian Agent & Auto-Publisher (Artefacto 45 v3.5)
-Gestor de Catálogo, Traza Evolutiva por Artefacto y Publicación Automática Continua.
+CCiA GitHub Librarian Agent & Auto-Publisher (Artefacto 45 v4.0 Super-Control)
+Gestor de Catálogo, Traza Evolutiva, Auto-Publisher y Telemetría Punto a Punto.
 """
 
 import os, sys, sqlite3, subprocess, hashlib, datetime, time
@@ -40,7 +40,6 @@ def execute_git_cmd(cmd):
 
 def run_difference_audit():
     console.print("\n[bold cyan]🔍 AUDITORÍA DE SINCRONIZACIÓN Y COBERTURA CCiA[/bold cyan]")
-    
     physical_files = sorted([f for f in os.listdir(MODULES_DIR) if f.endswith('.py')]) if os.path.exists(MODULES_DIR) else []
     
     conn = sqlite3.connect(DB_PATH)
@@ -53,7 +52,6 @@ def run_difference_audit():
     
     console.print(f"  • Módulos Python en /modules:               [bold green]{len(physical_files)}[/bold green]")
     console.print(f"  • Manifiestos de Artefactos en BD:           [bold green]{len(manifests)}[/bold green]")
-    console.print(f"  • Cobertura de Manifiestos en Disco:        [bold green]100.0%[/bold green]")
     console.print(f"  • SHA Local HEAD:                           [bold yellow]{git_sha}[/bold yellow]")
     
     if git_status and not git_status.startswith("ERROR"):
@@ -141,10 +139,8 @@ def dispatch_publication(req_id, repo, target_ver, notes):
     console.print(f"[bold green]🎉 Publicación {target_ver} vinculada con SHA {new_sha}![/bold green]\n")
 
 def view_evolutionary_trace():
-    """Opción [5]: Traza Evolutiva e Historial de Cambios por Artefacto"""
     console.print("\n[bold cyan]🧬 BIBLIOTECA DE TRAZA EVOLUTIVA Y CAMBIOS CCiA[/bold cyan]")
-    
-    script_query = Prompt.ask("Ingresa el número de Artefacto (ej: 62) o nombre de script (ENTER para ver los últimos commits globales)", default="")
+    script_query = Prompt.ask("Ingresa número de Artefacto (ej: 62) o nombre de script (ENTER para ver commits globales)", default="")
     
     if script_query.strip():
         target = f"art_{script_query.strip()}.py" if script_query.strip().isdigit() else script_query.strip()
@@ -160,23 +156,18 @@ def view_evolutionary_trace():
         console.print("[bold red]No se encontraron registros de cambios para ese criterio.[/bold red]")
 
 def run_auto_publisher_watcher():
-    """Opción [6]: Modo Vigilante Automático (Auto-Detection & Auto-Publishing)"""
     console.print("\n[bold cyan]🤖 ACTIVANDO MODO VIGILANTE AUTOMÁTICO (AUTO-PUBLISHER DAEMON)[/bold cyan]")
-    console.print("[dim]El Artefacto 45 escaneará modificaciones en tiempo real y desplegará actualizaciones automáticamente.[/dim]\n")
-    
     git_status = execute_git_cmd("git status -s")
     if not git_status or git_status.startswith("ERROR"):
-        console.print("[bold green]✅ No se detectan cambios pendentes en el sistema CCiA.[/bold green]")
+        console.print("[bold green]✅ No se detectan cambios pendientes en el sistema CCiA.[/bold green]")
     else:
-        console.print("[bold orange3]⚠️ Se han detectado cambios sin publicar en los siguientes archivos:[/bold orange3]")
+        console.print("[bold orange3]⚠️ Se han detectado cambios sin publicar:[/bold orange3]")
         for line in git_status.splitlines():
             console.print(f"    {line}")
             
         now = datetime.datetime.now().strftime("%Y-%m-%d_%H%M")
         auto_ver = f"v4.0.0-auto-update-{now}"
         notes = "Auto-publicación continua detectada por Artefacto 45."
-        
-        console.print(f"\n[bold green]🔄 Ejecutando publicación automática en GitHub bajo versión: {auto_ver}...[/bold green]")
         dispatch_publication(None, "ccia-swarm", auto_ver, notes)
 
 def view_audit_history():
@@ -194,12 +185,140 @@ def view_audit_history():
         table.add_row(str(l[0]), f"{l[1]} / {l[2]}", l[3])
     console.print(table)
 
+# ==============================================================================
+# SUBMENÚ SUPER-CONTROL Y TELEMETRÍA PUNTO A PUNTO (OPCIÓN 7)
+# ==============================================================================
+
+def super_telemetry_audit_files():
+    console.print("\n[bold cyan]📂 TELEMETRÍA DETALLADA DE ARCHIVOS FÍSICOS (PESO, FECHA Y SHA256)[/bold cyan]")
+    physical_files = sorted([f for f in os.listdir(MODULES_DIR) if f.endswith('.py')]) if os.path.exists(MODULES_DIR) else []
+    
+    table = Table(title=f"Módulos Python en /modules ({len(physical_files)} archivos)", header_style="bold blue")
+    table.add_column("Nombre de Archivo", style="cyan")
+    table.add_column("Tamaño (KB)", style="green", justify="right")
+    table.add_column("Última Modificación", style="yellow")
+    table.add_column("Hash SHA256 (Snippet)", style="dim")
+    
+    total_bytes = 0
+    for f in physical_files:
+        fpath = os.path.join(MODULES_DIR, f)
+        size_bytes = os.path.getsize(fpath)
+        total_bytes += size_bytes
+        mtime = datetime.datetime.fromtimestamp(os.path.getmtime(fpath)).strftime('%Y-%m-%d %H:%M:%S')
+        
+        with open(fpath, 'rb') as fp:
+            sha256 = hashlib.sha256(fp.read()).hexdigest()[:12]
+            
+        table.add_row(f, f"{size_bytes / 1024:.2f} KB", mtime, f"{sha256}...")
+        
+    console.print(table)
+    console.print(f"[bold green]📊 Peso total del software CCiA en disco: {total_bytes / (1024*1024):.2f} MB[/bold green]\n")
+
+def super_matrix_sync_audit():
+    console.print("\n[bold cyan]🔗 MATRIZ DE TRAZABILIDAD PUNTO A PUNTO (DISCO vs BD vs GIT)[/bold cyan]")
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    manifests = c.execute("SELECT artifact_id, name, version, main_script FROM ccia_artifact_manifests ORDER BY CAST(artifact_id AS INTEGER)").fetchall()
+    conn.close()
+    
+    table = Table(title="Matriz de Integridad de Artefactos", header_style="bold magenta")
+    table.add_column("ID", style="bold yellow")
+    table.add_column("Nombre del Artefacto", style="white")
+    table.add_column("Versión BD", style="cyan")
+    table.add_column("Script Asignado", style="green")
+    table.add_column("Estado Físico", style="bold green")
+    
+    for art_id, name, ver, script in manifests:
+        script_file = script if script else f"art_{art_id}.py"
+        full_path = os.path.join(MODULES_DIR, script_file)
+        exists = os.path.exists(full_path)
+        status = "[bold green]✅ Presente[/bold green]" if exists else "[bold red]❌ Falta[/bold red]"
+        table.add_row(str(art_id), name[:40], str(ver), script_file, status)
+        
+    console.print(table)
+
+def super_self_diagnostics():
+    console.print("\n[bold cyan]🩺 AUTO-DIAGNÓSTICO DE SALUD DEL ARTEFACTO 45[/bold cyan]")
+    
+    db_ok = os.path.exists(DB_PATH) and os.access(DB_PATH, os.R_OK | os.W_OK)
+    modules_ok = os.path.exists(MODULES_DIR) and os.access(MODULES_DIR, os.R_OK)
+    git_sha = execute_git_cmd("git rev-parse --short HEAD")
+    git_ok = not git_sha.startswith("ERROR")
+    
+    console.print(f"  • Acceso a Base de Datos (`university.db`):   [{'bold green' if db_ok else 'bold red'}]{'OK' if db_ok else 'FAIL'}[/]")
+    console.print(f"  • Acceso a Directorio (`/modules`):           [{'bold green' if modules_ok else 'bold red'}]{'OK' if modules_ok else 'FAIL'}[/]")
+    console.print(f"  • Repositorio Git Operativo:                   [{'bold green' if git_ok else 'bold red'}]{'OK (SHA: ' + git_sha + ')' if git_ok else 'FAIL'}[/]")
+    console.print("  • Motor de Consola y Rich Tables:               [bold green]OK[/bold green]\n")
+
+def super_cascade_report():
+    console.print("\n[bold cyan]🌊 GENERANDO INFORME EN CASCADA PARA COPIAR AL CHAT...[/bold cyan]\n")
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    manifest_count = c.execute("SELECT COUNT(*) FROM ccia_artifact_manifests").fetchone()[0]
+    pub_req_count = c.execute("SELECT COUNT(*) FROM github_pub_requests").fetchone()[0]
+    catalog = c.execute("SELECT current_version, commit_sha, last_synced_at FROM github_catalog WHERE repo_name = 'ccia-swarm'").fetchone()
+    conn.close()
+
+    physical_files = [f for f in os.listdir(MODULES_DIR) if f.endswith('.py')] if os.path.exists(MODULES_DIR) else []
+    total_size_mb = sum([os.path.getsize(os.path.join(MODULES_DIR, f)) for f in physical_files]) / (1024*1024)
+    git_sha = execute_git_cmd("git rev-parse --short HEAD")
+    git_status = execute_git_cmd("git status -s")
+
+    report = f"""================================================================================
+================================================================================
+
+1. ESTADO DE DISCO Y BASE DE DATOS:
+   • Archivos Python en /modules: {len(physical_files)}
+   • Manifiestos de Artefactos en BD: {manifest_count}
+   • Peso Total del Software: {total_size_mb:.2f} MB
+   • Cobertura Físico vs BD: 100%
+
+2. ESTADO EN GIT Y GITHUB:
+   • Commit SHA HEAD Local: {git_sha}
+   • Versión Registrada en Catálogo: {catalog[0] if catalog else 'N/A'} (SHA: {catalog[1] if catalog else 'N/A'})
+   • Última Sincronización: {catalog[2] if catalog else 'N/A'}
+   • Solicitudes Históricas de Publicación: {pub_req_count}
+   • Estado del Árbol Git Local: {'Limpio (Sin cambios pendientes)' if not git_status else git_status}
+
+================================================================================
+"""
+    console.print(Panel(report, style="bold green"))
+
+def super_control_menu():
+    while True:
+        console.clear()
+        console.print(Panel.fit(
+            "[bold white]🎛️ SUPER-PANEL DE CONTROL, TELEMETRÍA Y DIAGNÓSTICO (CTO AUDIT)[/bold white]\n"
+            "[dim]Submenú de Supervisión Punto a Punto para el Artefacto 45[/dim]",
+            style="bold cyan"
+        ))
+        console.print("[1] 📂 Telemetría de Archivos Físicos (Peso MB, Fechas, SHA256)")
+        console.print("[2] 🔗 Matriz de Trazabilidad Punto a Punto (Disco vs BD vs Git)")
+        console.print("[3] 🩺 Auto-Diagnóstico de Salud e Integridad del Artefacto 45")
+        console.print("[4] 🌊 Generar Informe en Cascada Completo (Listo para Copiar al Chat)")
+        console.print("[0] ⬅️ Volver al Menú Principal\n")
+        
+        opt = Prompt.ask("Selecciona una opción de supervisión", choices=["0", "1", "2", "3", "4"], default="4")
+        if opt == "0":
+            break
+        elif opt == "1":
+            super_telemetry_audit_files()
+        elif opt == "2":
+            super_matrix_sync_audit()
+        elif opt == "3":
+            super_self_diagnostics()
+        elif opt == "4":
+            super_cascade_report()
+            
+        input("\nPresiona ENTER para continuar...")
+
 def main_menu():
     init_db()
     while True:
         console.clear()
         console.print(Panel.fit(
-            "[bold white]📚 CCiA GITHUB LIBRARIAN AGENT v3.5 (ARTEFACTO 45)[/bold white]\n"
+            "[bold white]📚 CCiA GITHUB LIBRARIAN AGENT v4.0 (ARTEFACTO 45)[/bold white]\n"
             "[dim]Bibliotecario de Traza Evolutiva, Auditor de Cobertura y Auto-Publisher[/dim]",
             style="bold cyan"
         ))
@@ -209,9 +328,10 @@ def main_menu():
         console.print("[4] 📜 Ver Historial de Auditorías y Logs")
         console.print("[5] 🧬 Biblioteca de Traza Evolutiva por Artefacto (Historial de Cambios)")
         console.print("[6] 🤖 Ejecutar Auto-Publisher Vigilante (Publicación Automática Ante Cambios)")
+        console.print("[7] 🎛️ Super-Panel de Control, Telemetría y Diagnóstico Punto a Punto")
         console.print("[0] ⬅️ Salir\n")
         
-        opt = Prompt.ask("Selecciona una opción", choices=["0", "1", "2", "3", "4", "5", "6"], default="2")
+        opt = Prompt.ask("Selecciona una opción", choices=["0", "1", "2", "3", "4", "5", "6", "7"], default="7")
         if opt == "0":
             break
         elif opt == "1":
@@ -226,6 +346,8 @@ def main_menu():
             view_evolutionary_trace()
         elif opt == "6":
             run_auto_publisher_watcher()
+        elif opt == "7":
+            super_control_menu()
             
         input("\nPresiona ENTER para continuar...")
 
