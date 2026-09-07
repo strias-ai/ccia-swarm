@@ -18,3 +18,4 @@ ngrok.log
 webhook.log
 university.db-shm
 university.db-wal
+qdrant_db/

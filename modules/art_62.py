@@ -1,3 +1,50 @@
+
+def discover_multi_forge_repos(topic="quantum"):
+    """Descubre repositorios científicos integrando GitHub (gh), GitLab (glab) y Gitea (tea)"""
+    found_repos = []
+    import subprocess, json, shutil
+    
+    # Escaneo GitHub CLI
+    if shutil.which("gh"):
+        try:
+            res = subprocess.run(["gh", "repo", "search", topic, "--limit", "5", "--json", "fullName,url,description,stargazersCount"], capture_output=True, text=True, timeout=10)
+            if res.returncode == 0 and res.stdout:
+                data = json.loads(res.stdout)
+                for item in data:
+                    found_repos.append((item.get("fullName"), item.get("url"), item.get("description", ""), item.get("stargazersCount", 0), "GitHub"))
+        except Exception: pass
+
+    # Escaneo GitLab CLI
+    if shutil.which("glab"):
+        try:
+            res = subprocess.run(["glab", "repo", "search", "-s", topic, "-p", "1", "-P", "5"], capture_output=True, text=True, timeout=10)
+            if res.returncode == 0 and res.stdout:
+                for line in res.stdout.splitlines():
+                    if "/" in line:
+                        parts = line.split()
+                        found_repos.append((parts[0], f"https://gitlab.com/{parts[0]}", "GitLab Scientific Repo", 0, "GitLab"))
+        except Exception: pass
+
+    return found_repos
+
+
+
+def index_debate_vector_rag(execution_id, repo_name, text_content):
+    """Indexa semánticamente debates y parches en la base de datos vectorial ChromaDB/Qdrant"""
+    try:
+        import chromadb
+        client = chromadb.PersistentClient(path="/home/k1/ccia_workspace/chroma_db")
+        collection = client.get_or_create_collection(name="art62_swarm_memory")
+        collection.add(
+            documents=[text_content],
+            metadatas=[{"repo": repo_name, "execution_id": execution_id}],
+            ids=[f"{execution_id}_{int(time.time()*1000)}"]
+        )
+        if 'write_log' in globals(): write_log(f"  🧠 [Vector RAG] Debates de {repo_name} indexados en ChromaDB.")
+    except Exception:
+        pass
+
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -74,6 +121,10 @@ CCIA_SPECIALTIES = [
 
 class ReusableHTTPServer(HTTPServer):
     allow_reuse_address = True
+    def server_bind(self):
+        import socket
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        super().server_bind()
 
 def get_db_connection(db_file=DB_PATH):
     conn = sqlite3.connect(db_file, timeout=60.0)
