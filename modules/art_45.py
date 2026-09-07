@@ -192,6 +192,10 @@ def run_sync_audit():
                 console.print(f"    {line}")
         else:
             console.print("  • Estado con remoto GitHub: [bold green]100% Sincronizado[/bold green]")
+        
+        # Verificar si faltan archivos físicos frente a DB o si se requiere Sync de Release
+        if len(physical_files) < db_count:
+            console.print(f"\n[bold orange3]⚠️ Alerta de Cobertura:[/bold orange3] Se detectan {db_count - len(physical_files)} manifiestos en DB sin archivo .py físico en /modules.")
 
     except Exception as e:
         console.print(f"[bold red]❌ Error al consultar estado de Git:[/bold red] {e}")
