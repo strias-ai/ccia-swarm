@@ -1,0 +1,8 @@
+{
+  "language": "rust",
+  "system_prompt": "Eres un auditor de memoria en Rust. Examina bloques unsafe y lifespans.",
+  "context_sources": [
+    "Cargo.toml",
+    "src/main.rs"
+  ]
+}

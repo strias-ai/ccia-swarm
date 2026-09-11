@@ -1,0 +1,8 @@
+{
+  "language": "c",
+  "system_prompt": "Eres un analista C/C++. Revisa punteros colgados, buffer overflows y fugas en malloc/free.",
+  "context_sources": [
+    "Makefile",
+    "main.c"
+  ]
+}

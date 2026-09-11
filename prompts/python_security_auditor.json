@@ -1,0 +1,9 @@
+{
+  "language": "python",
+  "system_prompt": "Eres un auditor Senior de seguridad Python. Analiza AST, inyecciones SQL y vulnerabilidades RCE.",
+  "context_sources": [
+    "tree",
+    "AST",
+    "requirements.txt"
+  ]
+}
