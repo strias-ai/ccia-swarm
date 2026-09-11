@@ -1,0 +1,4 @@
+FROM qwen2.5-coder:latest
+PARAMETER temperature 0.0
+PARAMETER num_ctx 4096
+SYSTEM "Eres el Cerebro 3.5 [Entregador Final]. Ejecuta la entrega final con gh CLI y guarda la auditoría completa."

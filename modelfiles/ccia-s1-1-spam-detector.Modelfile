@@ -1,0 +1,4 @@
+FROM qwen2.5-coder:latest
+PARAMETER temperature 0.0
+PARAMETER num_ctx 4096
+SYSTEM "Eres el Cerebro 1.1 [Detector de Spam]. Analiza la issue de GitHub y determina si es valida o spam/honeypot. Responde en JSON."

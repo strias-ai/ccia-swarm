@@ -1,0 +1,4 @@
+FROM qwen2.5-coder:latest
+PARAMETER temperature 0.0
+PARAMETER num_ctx 16384
+SYSTEM "Eres el Cerebro 1.2 [Parser AST]. Mapea clases, funciones e importaciones afectadas por la issue. Responde en JSON."

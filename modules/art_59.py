@@ -1,5 +1,5 @@
 """
-CCiA Artefacto 59 - Ollama Email Dispatcher & B2B Repo OSINT Prospector
+CCiA Artefacto 59 - Ollama Email Dispatcher & B2B Repo OSINT Prospector (Optimizado)
 """
 import os
 import sys
@@ -8,9 +8,12 @@ import json
 import urllib.request
 import urllib.error
 import re
+import time
 
 DB_PATH = "/home/k1/ccia_workspace/university.db"
 OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
+LOCK_FILE = "/tmp/art59_prospector.lock"
+PROSPECT_COOLDOWN_SECONDS = 3600  # Ejecutar prospección B2B máximo 1 vez por hora
 
 def init_email_db():
     conn = sqlite3.connect(DB_PATH, timeout=30.0)
@@ -45,7 +48,6 @@ def init_email_db():
     conn.close()
 
 def query_ollama(prompt, model="qwen2.5-coder:7b"):
-    """Consulta al motor Ollama local con tolerancia a fallos y selección manual prioritaria."""
     fallback_models = [model, "qwen2.5-coder:7b", "llama3.2:3b", "qwen2.5:3b"]
     seen = set()
     models_to_try = [m for m in fallback_models if not (m in seen or seen.add(m))]
@@ -97,14 +99,23 @@ def process_inbound_emails():
         cur.execute("UPDATE email_messages SET status='PROCESSED', response_body=? WHERE id=?", (resp_text, msg_id))
         conn.commit()
         print("    ✉️ Respuesta generada y lista para envío SMTP.")
-        print(f"    └─ Vista previa: {resp_text[:70]}...")
 
     conn.close()
     print("-" * 80)
-    print("✅ Flujo completo de recepción, clasificación, orquestación y respuesta finalizado.")
 
 def prospect_public_repositories(topic_query="topic:python+topic:fastapi", max_results=5):
-    """Scraping y clasificación agéntica de empresas B2B en GitHub REST API."""
+    now = time.time()
+    if os.path.exists(LOCK_FILE):
+        try:
+            with open(LOCK_FILE, "r") as f:
+                last_run = float(f.read().strip())
+                if now - last_run < PROSPECT_COOLDOWN_SECONDS:
+                    elapsed_min = int((now - last_run) / 60)
+                    print(f"⌛ Prospección B2B OSINT en pausa (Última ejecución hace {elapsed_min} min).")
+                    return
+        except Exception:
+            pass
+
     init_email_db()
     print("\n" + "="*80)
     print("🔎 CCiA B2B OSINT PROSPECTOR: ANALIZANDO REPOSITORIOS PÚBLICOS")
@@ -170,11 +181,14 @@ Responde en formato JSON estricto: {{"score": 85, "product_needed": "AUDITORIA_C
             """, (owner, contact_email, product_needed, score, repo_url))
             new_leads += 1
             print(f"  🎯 Prospecto B2B Identificado: [{owner}] | Scoring: {score}/100")
-            print(f"     └─ Producto Recomendado: {product_needed} | Repo: {repo_url}")
 
     conn.commit()
     conn.close()
-    print(f"\n✅ Prospección finalizada: {new_leads} nuevos clientes B2B cualificados e ingresados en CRM.")
+    
+    with open(LOCK_FILE, "w") as f:
+        f.write(str(now))
+        
+    print(f"\n✅ Prospección finalizada: {new_leads} nuevos clientes B2B cualificados.")
 
 if __name__ == "__main__":
     process_inbound_emails()

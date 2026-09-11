@@ -1,0 +1,122 @@
+[
+  {
+    "id": "1",
+    "code": "1.1",
+    "swarm": "Enjambre 1",
+    "role": "Detector de Spam",
+    "icon": "🔬",
+    "model": "ccia-s1-1-spam-detector:latest"
+  },
+  {
+    "id": "2",
+    "code": "1.2",
+    "swarm": "Enjambre 1",
+    "role": "Parser AST",
+    "icon": "🏗️",
+    "model": "ccia-s1-2-ast-parser:latest"
+  },
+  {
+    "id": "3",
+    "code": "1.3",
+    "swarm": "Enjambre 1",
+    "role": "Diseñador Algorítmico",
+    "icon": "📐",
+    "model": "ccia-s1-3-algo-designer:latest"
+  },
+  {
+    "id": "4",
+    "code": "1.4",
+    "swarm": "Enjambre 1",
+    "role": "Generador de Parches",
+    "icon": "⚡",
+    "model": "ccia-s1-4-patch-generator:latest"
+  },
+  {
+    "id": "5",
+    "code": "1.5",
+    "swarm": "Enjambre 1",
+    "role": "Auditor de Conformidad",
+    "icon": "🛡️",
+    "model": "ccia-s1-5-compliance-auditor:latest"
+  },
+  {
+    "id": "6",
+    "code": "2.1",
+    "swarm": "Enjambre 2",
+    "role": "Validador Sintáctico",
+    "icon": "🧪",
+    "model": "ccia-s2-1-syntax-validator:latest"
+  },
+  {
+    "id": "7",
+    "code": "2.2",
+    "swarm": "Enjambre 2",
+    "role": "Profiler Rendimiento",
+    "icon": "⏱️",
+    "model": "ccia-s2-2-perf-profiler:latest"
+  },
+  {
+    "id": "8",
+    "code": "2.3",
+    "swarm": "Enjambre 2",
+    "role": "Agente Mutación",
+    "icon": "🧬",
+    "model": "ccia-s2-3-mutation-agent:latest"
+  },
+  {
+    "id": "9",
+    "code": "2.4",
+    "swarm": "Enjambre 2",
+    "role": "Historiador Vectorial",
+    "icon": "📚",
+    "model": "ccia-s2-4-patch-historian:latest"
+  },
+  {
+    "id": "10",
+    "code": "2.5",
+    "swarm": "Enjambre 2",
+    "role": "Selector Óptimo",
+    "icon": "🎯",
+    "model": "ccia-s2-5-optimal-selector:latest"
+  },
+  {
+    "id": "11",
+    "code": "3.1",
+    "swarm": "Enjambre 3",
+    "role": "Auditor Red-Team",
+    "icon": "🚨",
+    "model": "ccia-s3-1-redteam-auditor:latest"
+  },
+  {
+    "id": "12",
+    "code": "3.2",
+    "swarm": "Enjambre 3",
+    "role": "Ejecutor Aislamiento",
+    "icon": "📦",
+    "model": "ccia-s3-2-isolation-executor:latest"
+  },
+  {
+    "id": "13",
+    "code": "3.3",
+    "swarm": "Enjambre 3",
+    "role": "Fallback Dispatcher",
+    "icon": "🔄",
+    "model": "ccia-s3-3-fallback-dispatcher:latest"
+  },
+  {
+    "id": "14",
+    "code": "3.4",
+    "swarm": "Enjambre 3",
+    "role": "Formateador PR",
+    "icon": "📝",
+    "model": "ccia-s3-4-pr-formatter:latest"
+  },
+  {
+    "id": "15",
+    "code": "3.5",
+    "swarm": "Enjambre 3",
+    "role": "Entregador Final",
+    "icon": "🚀",
+    "model": "ccia-s3-5-final-deliverer:latest"
+  }
+]

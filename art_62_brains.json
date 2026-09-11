@@ -1,7 +1,7 @@
 {
-  "brain1_investigator": "nexusriot/deepseek-r1-abliterated:8b",
-  "brain2_architect": "huihui_ai/qwen2.5-coder-abliterate:7b",
-  "brain3_reviewer": "qwen2.5-coder:14b",
+  "brain1_investigator": "huihui_ai/deepseek-r1-abliterated:14b",
+  "brain2_architect": "huihui_ai/qwen2.5-coder-abliterate:14b",
+  "brain3_reviewer": "codellama:13b",
   "brain4_ethics": "dolphin-llama3:8b",
   "brain5_diplomat": "mistral-nemo:12b"
 }

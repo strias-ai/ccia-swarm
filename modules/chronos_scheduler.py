@@ -8,6 +8,14 @@ Gateway A2A, Ciencia, PQC, GraphRAG, Mesh, Ollama Scheduler, Email Dispatcher & 
 import time
 import subprocess
 import os
+import fcntl
+# Evitar ejecuciones simultáneas de Chronos Scheduler
+lock_file_path = '/tmp/chronos_scheduler.lock'
+lock_file = open(lock_file_path, 'w')
+try:
+    fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except IOError:
+    sys.exit(0)
 import sys
 
 def log(msg):
