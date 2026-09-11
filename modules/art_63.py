@@ -1,4 +1,35 @@
 
+def with_ollama_mutex(func):
+    def wrapper(*args, **kwargs):
+        lock_obj = acquire_ollama_mutex()
+        try:
+            return func(*args, **kwargs)
+        finally:
+            release_ollama_mutex(lock_obj)
+    return wrapper
+
+
+# --- CERROJO MUTEX GLOBAL DE OLLAMA CCIA ---
+OLLAMA_LOCK_FILE = "/tmp/ccia_ollama_global.lock"
+
+def acquire_ollama_mutex():
+    try:
+        f = open(OLLAMA_LOCK_FILE, "w")
+        fcntl.flock(f, fcntl.LOCK_EX)
+        return f
+    except Exception:
+        return None
+
+def release_ollama_mutex(lock_file_obj):
+    try:
+        if lock_file_obj:
+            fcntl.flock(lock_file_obj, fcntl.LOCK_UN)
+            lock_file_obj.close()
+    except Exception:
+        pass
+# --------------------------------------------
+import fcntl
+
 def build_repo_context(repo_dir):
     """Extrae el árbol de archivos y snippets clave del repo clonado."""
     if not repo_dir or not os.path.exists(repo_dir):

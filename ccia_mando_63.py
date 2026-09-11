@@ -88,7 +88,17 @@ def print_header():
     print("=" * 80)
     print(f" Estado Bucle 24/7 Artefacto 62 : [{b247_status}]")
     print(f" Daemon Bucle 24/7 Artefacto 63 : [{daemon_status}]")
-    print(f" Cerrojo Mutex (/tmp)          : [LIBRE]")
+    import fcntl
+    mutex_status = "[LIBRE]"
+    try:
+        lock_f = open("/tmp/ccia_ollama_global.lock", "a+")
+        fcntl.flock(lock_f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(lock_f, fcntl.LOCK_UN)
+        lock_f.close()
+    except (IOError, OSError):
+        mutex_status = "[🔒 OCUPADO por Ollama]"
+
+    print(f" Cerrojo Mutex (/tmp)          : {mutex_status}")
     print("-" * 80)
 
 def show_mando_menu():
@@ -302,13 +312,29 @@ def show_mando_menu():
             input("\n[Presione ENTER para continuar...]")
 
         elif opt == '12':
-
-
-            execute_daemon_toggle_art63()
-
-
-            input('\n[ Presione ENTER para volver al menú ] ')
-
-
+            import subprocess, os, signal
+            pid_file = "/tmp/art63_daemon.pid"
+            res = subprocess.run(["pgrep", "-f", "art_63.py --daemon"], capture_output=True, text=True)
+            pids = [p.strip() for p in res.stdout.strip().split("\n") if p.strip()]
+            if pids:
+                print(f"\n⚠️ Se detectaron {len(pids)} daemon(s) activo(s). Deteniendo...")
+                for p in pids:
+                    try:
+                        os.kill(int(p), signal.SIGKILL)
+                    except Exception:
+                        pass
+                if os.path.exists(pid_file):
+                    os.remove(pid_file)
+                print("🔴 Daemon del Artefacto 63 DETENIDO limpiamente.")
+            else:
+                print("\n🚀 Iniciando única instancia del Daemon...")
+                log_f = open("/tmp/art63_daemon.log", "w")
+                proc = subprocess.Popen([
+                    "python3", "-u", "/home/k1/ccia_workspace/modules/art_63.py", "--daemon"
+                ], stdout=log_f, stderr=subprocess.STDOUT, start_new_session=True)
+                with open(pid_file, "w") as f:
+                    f.write(str(proc.pid))
+                print(f"🟢 Daemon iniciado con PID único: {proc.pid}")
+            input("\nPresione ENTER para continuar...")
 if __name__ == '__main__':
     show_mando_menu()

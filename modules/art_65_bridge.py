@@ -1,3 +1,13 @@
+
+# Integration with Swarm Middleware
+import sys
+sys.path.append('/home/k1/ccia_workspace/modules')
+try:
+    from swarm_middleware import process_task, save_successful_patch
+    HAS_SWARM_MIDDLEWARE = True
+except ImportError:
+    HAS_SWARM_MIDDLEWARE = False
+
 # ARCHIVO: /home/k1/ccia_workspace/modules/art_65_bridge.py
 """
 CCiA Universal Swarm Bridge - Interfaz unificada de conexión al Artefacto 65.
