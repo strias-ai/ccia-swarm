@@ -1,3 +1,41 @@
+
+def build_repo_context(repo_dir):
+    """Extrae el árbol de archivos y snippets clave del repo clonado."""
+    if not repo_dir or not os.path.exists(repo_dir):
+        return "No hay repositorio clonado disponible."
+    
+    context = []
+    context.append("=== ESTRUCTURA DE ARCHIVOS DEL REPOSITORIO ===")
+    file_count = 0
+    for root, dirs, files in os.walk(repo_dir):
+        dirs[:] = [d for d in dirs if d not in ['.git', '__pycache__', 'node_modules', '.venv']]
+        for f in files:
+            rel_path = os.path.relpath(os.path.join(root, f), repo_dir)
+            context.append(f"- {rel_path}")
+            file_count += 1
+            if file_count > 40:
+                break
+        if file_count > 40:
+            break
+
+    context.append("\n=== CONTENIDO DE ARCHIVOS CLAVE ===")
+    key_files = ['README.md', 'main.py', 'package.json', 'Cargo.toml', 'requirements.txt', 'go.mod']
+    for root, dirs, files in os.walk(repo_dir):
+        for f in files:
+            if f in key_files or f.endswith(('.py', '.rs', '.go', '.js', '.sol')):
+                full_p = os.path.join(root, f)
+                rel_p = os.path.relpath(full_p, repo_dir)
+                try:
+                    with open(full_p, 'r', encoding='utf-8', errors='ignore') as c_file:
+                        content = c_file.read(1500) # Primeros 1500 caracteres
+                        context.append(f"--- INICIO ARCHIVO: {rel_p} ---\n{content}\n--- FIN ARCHIVO ---")
+                except Exception:
+                    pass
+                if len(context) > 10:
+                    break
+    return "\n".join(context)
+
+
 import sys
 try:
     sys.stdout.reconfigure(line_buffering=True)
