@@ -24,8 +24,8 @@ def run_audit():
 
     # 2. Verificar correspondencia con los 15 cerebros
     target_models = [
-        "huihui_ai/deepseek-r1-abliterated:14b",
-        "huihui_ai/qwen2.5-coder-abliterate:14b",
+        "ccia-reina-r1coder-14b:latest",
+        "ccia-coder-xl-14b:latest",
         "codestral:latest",
         "deepscaler:latest",
         "mistral-nemo:12b",

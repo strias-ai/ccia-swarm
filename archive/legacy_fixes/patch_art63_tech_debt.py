@@ -58,7 +58,7 @@ if "class StreamThinkFilter" not in code:
 
 # B. Método de llamada a Ollama con Timeout y Fallback
 fallback_logic = '''
-    def call_ollama_safe(self, model: str, prompt: str, fallback_model: str = "huihui_ai/qwen2.5-coder-abliterate:14b", timeout: int = 120):
+    def call_ollama_safe(self, model: str, prompt: str, fallback_model: str = "ccia-coder-xl-14b:latest", timeout: int = 120):
         """Ejecuta inferencia con fallback automático en caso de timeout o falta de VRAM."""
         try:
             import requests

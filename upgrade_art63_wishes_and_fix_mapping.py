@@ -15,23 +15,23 @@ config_json = os.path.join(memory_dir, "brain_models_config.json")
 
 # 1. Crear configuración por defecto si no existe
 default_brains = {
-    "1.1": "huihui_ai/deepseek-r1-abliterated:14b",
-    "1.2": "huihui_ai/deepseek-r1-abliterated:14b",
-    "1.3": "huihui_ai/qwen2.5-coder-abliterate:14b",
-    "1.4": "huihui_ai/qwen2.5-coder-abliterate:14b",
+    "1.1": "ccia-reina-r1coder-14b:latest",
+    "1.2": "ccia-reina-r1coder-14b:latest",
+    "1.3": "ccia-coder-xl-14b:latest",
+    "1.4": "ccia-coder-xl-14b:latest",
     "1.5": "dolphin-llama3:8b",
-    "2.1": "huihui_ai/qwen2.5-coder-abliterate:14b",
-    "2.2": "huihui_ai/qwen2.5-coder-abliterate:14b",
-    "2.3": "huihui_ai/qwen2.5-coder-abliterate:14b",
+    "2.1": "ccia-coder-xl-14b:latest",
+    "2.2": "ccia-coder-xl-14b:latest",
+    "2.3": "ccia-coder-xl-14b:latest",
     "2.4": "mistral-nemo:12b",
-    "2.5": "huihui_ai/qwen2.5-coder-abliterate:14b",
-    "3.1": "huihui_ai/qwen2.5-coder-abliterate:14b",
-    "3.2": "huihui_ai/deepseek-r1-abliterated:14b",
-    "3.3": "huihui_ai/qwen2.5-coder-abliterate:14b",
-    "3.4": "huihui_ai/qwen2.5-coder-abliterate:14b",
-    "3.5": "huihui_ai/deepseek-r1-abliterated:14b",
-    "Q1": "huihui_ai/deepseek-r1-abliterated:14b",
-    "Q2": "huihui_ai/qwen2.5-coder-abliterate:14b",
+    "2.5": "ccia-coder-xl-14b:latest",
+    "3.1": "ccia-coder-xl-14b:latest",
+    "3.2": "ccia-reina-r1coder-14b:latest",
+    "3.3": "ccia-coder-xl-14b:latest",
+    "3.4": "ccia-coder-xl-14b:latest",
+    "3.5": "ccia-reina-r1coder-14b:latest",
+    "Q1": "ccia-reina-r1coder-14b:latest",
+    "Q2": "ccia-coder-xl-14b:latest",
     "Q3": "mistral-nemo:12b"
 }
 

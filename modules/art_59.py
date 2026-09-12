@@ -47,8 +47,8 @@ def init_email_db():
     conn.commit()
     conn.close()
 
-def query_ollama(prompt, model="qwen2.5-coder:7b"):
-    fallback_models = [model, "qwen2.5-coder:7b", "llama3.2:3b", "qwen2.5:3b"]
+def query_ollama(prompt, model="ccia-coder-xl-14b:latest"):
+    fallback_models = [model, "ccia-coder-xl-14b:latest", "llama3.2:3b", "qwen2.5:3b"]
     seen = set()
     models_to_try = [m for m in fallback_models if not (m in seen or seen.add(m))]
     
@@ -87,14 +87,14 @@ def process_inbound_emails():
         print(f"    Asunto: {subject}")
         
         prompt = f"Clasifica la intencion de este email: Subject: {subject} | Body: {body}. Responde solo la categoria (ej. AUDITORIA, DATASET, INFORMACION)."
-        intent = query_ollama(prompt, model="qwen2.5-coder:7b")
+        intent = query_ollama(prompt, model="ccia-coder-xl-14b:latest")
         print(f"    🤖 Intención identificada por Ollama: {intent}")
         
         target_art = "10" if "AUDIT" in intent.upper() else "21"
         print(f"    ⚙️ Despachando tarea al Artefacto [{target_art}] para ejecución...")
         
         resp_prompt = f"Redacta una respuesta profesional breve a este correo de {sender} confirmando recepción y próximo paso."
-        resp_text = query_ollama(resp_prompt, model="qwen2.5-coder:7b")
+        resp_text = query_ollama(resp_prompt, model="ccia-coder-xl-14b:latest")
         
         cur.execute("UPDATE email_messages SET status='PROCESSED', response_body=? WHERE id=?", (resp_text, msg_id))
         conn.commit()
@@ -160,7 +160,7 @@ def prospect_public_repositories(topic_query="topic:python+topic:fastapi", max_r
 Determina la necesidad principal (AUDITORIA_CODIGO, DATASET_SINTETICO, INTEGRACION_A2A).
 Responde en formato JSON estricto: {{"score": 85, "product_needed": "AUDITORIA_CODIGO"}}"""
 
-        ollama_res = query_ollama(prompt, model="qwen2.5-coder:7b")
+        ollama_res = query_ollama(prompt, model="ccia-coder-xl-14b:latest")
         score = 75
         product_needed = "AUDITORIA_CODIGO"
 

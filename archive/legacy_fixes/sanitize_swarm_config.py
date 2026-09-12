@@ -12,9 +12,9 @@ try:
 except Exception:
     available_models = [
         "richardyoung/qwen2.5-7b-instruct-abliterated:latest",
-        "huihui_ai/deepseek-r1-abliterated:14b",
+        "ccia-reina-r1coder-14b:latest",
         "huihui_ai/deepseek-r1-abliterated:7b",
-        "huihui_ai/qwen2.5-coder-abliterate:14b"
+        "ccia-coder-xl-14b:latest"
     ]
 
 # 2. Corregir entradas numéricas literales en swarm_config.json

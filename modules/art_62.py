@@ -80,7 +80,7 @@ PUBLIC_ENDPOINT = f"http://{MAGIC_DNS}:{PORT_CHAT}/a2a/v1/chat"
 
 DEFAULT_BRAINS = {
     "brain1_investigator": ["deepseek-r1:7b", "🔬 CEREBRO 1: INVESTIGADOR", "\033[96m", 450],
-    "brain2_architect": ["qwen2.5-coder:7b", "🏗️ CEREBRO 2: ARQUITECTO", "\033[94m", 300],
+    "brain2_architect": ["ccia-coder-xl-14b:latest", "🏗️ CEREBRO 2: ARQUITECTO", "\033[94m", 300],
     "brain3_reviewer": ["mistral-nemo:12b", "🔍 CEREBRO 3: REVISOR CIENTÍFICO", "\033[93m", 600],
     "brain4_ethics": ["phi3.5:latest", "⚖️ CEREBRO 4: COMITÉ ÉTICO", "\033[95m", 300],
     "brain5_diplomat": ["qwen2.5:3b", "📜 CEREBRO 5: DIPLOMÁTICO A2A", "\033[92m", 180]

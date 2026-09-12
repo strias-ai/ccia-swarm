@@ -3,13 +3,13 @@
     "code": "Q1",
     "role": "Reina Gobernanza & Estrategia",
     "icon": "👑",
-    "model": "huihui_ai/deepseek-r1-abliterated:14b"
+    "model": "ccia-reina-r1coder-14b:latest"
   },
   {
     "code": "Q2",
     "role": "Reina Calidad & Seguridad",
     "icon": "🛡️",
-    "model": "huihui_ai/qwen2.5-coder-abliterate:14b"
+    "model": "ccia-coder-xl-14b:latest"
   },
   {
     "code": "Q3",

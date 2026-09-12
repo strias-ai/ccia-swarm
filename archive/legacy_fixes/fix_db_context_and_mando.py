@@ -36,7 +36,7 @@ class TriSwarmOrchestrator:
         self.wallets = self._load_wallets()
         self.brains, self.queen_brains = self._load_swarm_config()
         
-        self.fallback_model = "huihui_ai/qwen2.5-coder-abliterate:14b"
+        self.fallback_model = "ccia-coder-xl-14b:latest"
         self.available_models = self._get_installed_models()
         self._init_and_migrate_db()
 

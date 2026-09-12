@@ -29,22 +29,22 @@ print("  ✅ 15 cerebros redundantes eliminados (Liberados ~70 GB de espacio).")
 # 2. Re-mapeo directo en el código fuente de Artefacto 63
 MODEL_MAPPING = {
     # Tareas de Código -> Qwen2.5 Coder 14B Abliterated
-    "S1_4": "huihui_ai/qwen2.5-coder-abliterate:14b",
-    "S2_1": "huihui_ai/qwen2.5-coder-abliterate:14b",
-    "S2_3": "huihui_ai/qwen2.5-coder-abliterate:14b",
-    "S3_4": "huihui_ai/qwen2.5-coder-abliterate:14b",
-    "S1_2": "huihui_ai/qwen2.5-coder-abliterate:14b",
+    "S1_4": "ccia-coder-xl-14b:latest",
+    "S2_1": "ccia-coder-xl-14b:latest",
+    "S2_3": "ccia-coder-xl-14b:latest",
+    "S3_4": "ccia-coder-xl-14b:latest",
+    "S1_2": "ccia-coder-xl-14b:latest",
     # Tareas de Auditoría y Razonamiento -> DeepSeek R1 14B Abliterated
-    "S1_1": "huihui_ai/deepseek-r1-abliterated:14b",
-    "S1_3": "huihui_ai/deepseek-r1-abliterated:14b",
-    "S1_5": "huihui_ai/deepseek-r1-abliterated:14b",
-    "S2_2": "huihui_ai/deepseek-r1-abliterated:14b",
-    "S2_4": "huihui_ai/deepseek-r1-abliterated:14b",
-    "S2_5": "huihui_ai/deepseek-r1-abliterated:14b",
-    "S3_1": "huihui_ai/deepseek-r1-abliterated:14b",
-    "S3_2": "huihui_ai/deepseek-r1-abliterated:14b",
-    "S3_3": "huihui_ai/deepseek-r1-abliterated:14b",
-    "S3_5": "huihui_ai/deepseek-r1-abliterated:14b",
+    "S1_1": "ccia-reina-r1coder-14b:latest",
+    "S1_3": "ccia-reina-r1coder-14b:latest",
+    "S1_5": "ccia-reina-r1coder-14b:latest",
+    "S2_2": "ccia-reina-r1coder-14b:latest",
+    "S2_4": "ccia-reina-r1coder-14b:latest",
+    "S2_5": "ccia-reina-r1coder-14b:latest",
+    "S3_1": "ccia-reina-r1coder-14b:latest",
+    "S3_2": "ccia-reina-r1coder-14b:latest",
+    "S3_3": "ccia-reina-r1coder-14b:latest",
+    "S3_5": "ccia-reina-r1coder-14b:latest",
 }
 
 for path in [ART63_PATH, MANDO63_PATH]:
@@ -56,11 +56,11 @@ for path in [ART63_PATH, MANDO63_PATH]:
         for old_model in ccia_models:
             clean_name = old_model.replace(":latest", "")
             if "patch-generator" in clean_name or "syntax" in clean_name or "pr-formatter" in clean_name or "ast-parser" in clean_name or "mutation" in clean_name:
-                content = content.replace(clean_name, "huihui_ai/qwen2.5-coder-abliterate:14b")
-                content = content.replace(old_model, "huihui_ai/qwen2.5-coder-abliterate:14b")
+                content = content.replace(clean_name, "ccia-coder-xl-14b:latest")
+                content = content.replace(old_model, "ccia-coder-xl-14b:latest")
             else:
-                content = content.replace(clean_name, "huihui_ai/deepseek-r1-abliterated:14b")
-                content = content.replace(old_model, "huihui_ai/deepseek-r1-abliterated:14b")
+                content = content.replace(clean_name, "ccia-reina-r1coder-14b:latest")
+                content = content.replace(old_model, "ccia-reina-r1coder-14b:latest")
 
         # Inyectar soporte de Cartera Solana en la lista de carteras
         if "Solana (USDC) Address" not in content:

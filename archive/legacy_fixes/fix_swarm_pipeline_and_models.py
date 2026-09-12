@@ -7,26 +7,26 @@ import py_compile
 # 1. Configurar los 15 cerebros con la mejor combinación científica/técnica
 optimal_brains = [
     {"code": "1.1", "role": "Archi-Investigador", "icon": "🔍", "model": "richardyoung/deepseek-r1-32b-uncensored:latest"},
-    {"code": "1.2", "role": "Archi-Diseñador", "icon": "📐", "model": "huihui_ai/deepseek-r1-abliterated:14b"},
-    {"code": "1.3", "role": "Especialista Backend", "icon": "⚙️", "model": "huihui_ai/qwen2.5-coder-abliterate:14b"},
-    {"code": "1.4", "role": "Especialista Frontend", "icon": "🎨", "model": "huihui_ai/qwen2.5-coder-abliterate:14b"},
+    {"code": "1.2", "role": "Archi-Diseñador", "icon": "📐", "model": "ccia-reina-r1coder-14b:latest"},
+    {"code": "1.3", "role": "Especialista Backend", "icon": "⚙️", "model": "ccia-coder-xl-14b:latest"},
+    {"code": "1.4", "role": "Especialista Frontend", "icon": "🎨", "model": "ccia-coder-xl-14b:latest"},
     {"code": "1.5", "role": "Auditor Seguridad", "icon": "🛡️", "model": "richardyoung/deepseek-r1-32b-uncensored:latest"},
     {"code": "2.1", "role": "Critico Código", "icon": "🧪", "model": "codestral:latest"},
     {"code": "2.2", "role": "Optimizador Rendimiento", "icon": "⚡", "model": "deepscaler:latest"},
-    {"code": "2.3", "role": "Ingeniero Pruebas", "icon": "🎯", "model": "huihui_ai/qwen2.5-coder-abliterate:14b"},
+    {"code": "2.3", "role": "Ingeniero Pruebas", "icon": "🎯", "model": "ccia-coder-xl-14b:latest"},
     {"code": "2.4", "role": "Redactor Docs", "icon": "📝", "model": "mistral-nemo:12b"},
-    {"code": "2.5", "role": "Integrador API", "icon": "🔌", "model": "huihui_ai/qwen2.5-coder-abliterate:14b"},
+    {"code": "2.5", "role": "Integrador API", "icon": "🔌", "model": "ccia-coder-xl-14b:latest"},
     {"code": "3.1", "role": "Arbitro Calidad", "icon": "⚖️", "model": "richardyoung/deepseek-r1-32b-uncensored:latest"},
-    {"code": "3.2", "role": "Estratega Bounties", "icon": "💰", "model": "huihui_ai/deepseek-r1-abliterated:14b"},
+    {"code": "3.2", "role": "Estratega Bounties", "icon": "💰", "model": "ccia-reina-r1coder-14b:latest"},
     {"code": "3.3", "role": "Especialista DB", "icon": "🗄️", "model": "qwen2.5-coder:14b"},
-    {"code": "3.4", "role": "Gestor Despliegue", "icon": "🚀", "model": "huihui_ai/qwen2.5-coder-abliterate:14b"},
+    {"code": "3.4", "role": "Gestor Despliegue", "icon": "🚀", "model": "ccia-coder-xl-14b:latest"},
     {"code": "3.5", "role": "Reina Mando", "icon": "👑", "model": "richardyoung/deepseek-r1-32b-uncensored:latest"}
 ]
 
 optimal_queen_brains = [
     {"code": "Q1", "role": "Reina Gobernanza & Estrategia", "icon": "👑", "model": "richardyoung/deepseek-r1-32b-uncensored:latest"},
     {"code": "Q2", "role": "Reina Calidad & Seguridad", "icon": "🛡️", "model": "richardyoung/deepseek-r1-32b-uncensored:latest"},
-    {"code": "Q3", "role": "Reina Finanzas & Bounties", "icon": "💎", "model": "huihui_ai/deepseek-r1-abliterated:14b"}
+    {"code": "Q3", "role": "Reina Finanzas & Bounties", "icon": "💎", "model": "ccia-reina-r1coder-14b:latest"}
 ]
 
 with open("/home/k1/ccia_workspace/swarm_brains_63.json", "w", encoding="utf-8") as f:

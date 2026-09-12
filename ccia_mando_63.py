@@ -102,6 +102,7 @@ def print_header():
     print("-" * 80)
 
 def show_mando_menu():
+    import os, subprocess
     while True:
         print_header()
         print("  [1] 📋 Ver Mapeo Actual y Estado del Enjambre")

@@ -13,25 +13,25 @@ cfg_path = "/home/k1/ccia_workspace/swarm_config.json"
 # 1. Asegurar que swarm_config.json tenga la estructura base válida
 default_config = {
     "brains": [
-        {"code": "1.1", "swarm": 1, "role": "Archi-Investigador", "model": "huihui_ai/deepseek-r1-abliterated:14b"},
-        {"code": "1.2", "swarm": 1, "role": "Archi-Diseñador", "model": "huihui_ai/deepseek-r1-abliterated:14b"},
-        {"code": "1.3", "swarm": 1, "role": "Desarrollador Core", "model": "huihui_ai/qwen2.5-coder-abliterate:14b"},
-        {"code": "1.4", "swarm": 1, "role": "Auditor Seguridad", "model": "huihui_ai/qwen2.5-coder-abliterate:14b"},
+        {"code": "1.1", "swarm": 1, "role": "Archi-Investigador", "model": "ccia-reina-r1coder-14b:latest"},
+        {"code": "1.2", "swarm": 1, "role": "Archi-Diseñador", "model": "ccia-reina-r1coder-14b:latest"},
+        {"code": "1.3", "swarm": 1, "role": "Desarrollador Core", "model": "ccia-coder-xl-14b:latest"},
+        {"code": "1.4", "swarm": 1, "role": "Auditor Seguridad", "model": "ccia-coder-xl-14b:latest"},
         {"code": "1.5", "swarm": 1, "role": "Redactor Docs", "model": "dolphin-llama3:8b"},
-        {"code": "2.1", "swarm": 2, "role": "Frontend Specialist", "model": "huihui_ai/qwen2.5-coder-abliterate:14b"},
-        {"code": "2.2", "swarm": 2, "role": "Backend Smart Contracts", "model": "huihui_ai/qwen2.5-coder-abliterate:14b"},
-        {"code": "2.3", "swarm": 2, "role": "QA & Testing", "model": "huihui_ai/qwen2.5-coder-abliterate:14b"},
+        {"code": "2.1", "swarm": 2, "role": "Frontend Specialist", "model": "ccia-coder-xl-14b:latest"},
+        {"code": "2.2", "swarm": 2, "role": "Backend Smart Contracts", "model": "ccia-coder-xl-14b:latest"},
+        {"code": "2.3", "swarm": 2, "role": "QA & Testing", "model": "ccia-coder-xl-14b:latest"},
         {"code": "2.4", "swarm": 2, "role": "DevOps & CI/CD", "model": "mistral-nemo:12b"},
-        {"code": "2.5", "swarm": 2, "role": "UX/Technical Writer", "model": "huihui_ai/qwen2.5-coder-abliterate:14b"},
-        {"code": "3.1", "swarm": 3, "role": "Validator Web3/DeFi", "model": "huihui_ai/qwen2.5-coder-abliterate:14b"},
-        {"code": "3.2", "swarm": 3, "role": "Cryptographic Auditor", "model": "huihui_ai/deepseek-r1-abliterated:14b"},
-        {"code": "3.3", "swarm": 3, "role": "PR & Community Lead", "model": "huihui_ai/qwen2.5-coder-abliterate:14b"},
-        {"code": "3.4", "swarm": 3, "role": "Tokenomics Expert", "model": "huihui_ai/qwen2.5-coder-abliterate:14b"},
-        {"code": "3.5", "swarm": 3, "role": "Legal & ProBono Compliance", "model": "huihui_ai/deepseek-r1-abliterated:14b"}
+        {"code": "2.5", "swarm": 2, "role": "UX/Technical Writer", "model": "ccia-coder-xl-14b:latest"},
+        {"code": "3.1", "swarm": 3, "role": "Validator Web3/DeFi", "model": "ccia-coder-xl-14b:latest"},
+        {"code": "3.2", "swarm": 3, "role": "Cryptographic Auditor", "model": "ccia-reina-r1coder-14b:latest"},
+        {"code": "3.3", "swarm": 3, "role": "PR & Community Lead", "model": "ccia-coder-xl-14b:latest"},
+        {"code": "3.4", "swarm": 3, "role": "Tokenomics Expert", "model": "ccia-coder-xl-14b:latest"},
+        {"code": "3.5", "swarm": 3, "role": "Legal & ProBono Compliance", "model": "ccia-reina-r1coder-14b:latest"}
     ],
     "queen_brains": [
-        {"code": "Q1", "role": "Reina Gobernanza & Estrategia", "model": "huihui_ai/deepseek-r1-abliterated:14b"},
-        {"code": "Q2", "role": "Reina Calidad & Código", "model": "huihui_ai/qwen2.5-coder-abliterate:14b"},
+        {"code": "Q1", "role": "Reina Gobernanza & Estrategia", "model": "ccia-reina-r1coder-14b:latest"},
+        {"code": "Q2", "role": "Reina Calidad & Código", "model": "ccia-coder-xl-14b:latest"},
         {"code": "Q3", "role": "Reina Síntesis & Publicación", "model": "mistral-nemo:12b"}
     ]
 }

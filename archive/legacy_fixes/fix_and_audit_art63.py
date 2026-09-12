@@ -28,28 +28,28 @@ if not os.path.exists(wallets_path):
 
 config_path = "/home/k1/ccia_workspace/swarm_config.json"
 default_brains = [
-    {"code": "1.1", "role": "Archi-Investigador", "model": "huihui_ai/deepseek-r1-abliterated:14b", "swarm": 1},
-    {"code": "1.2", "role": "Archi-Diseñador", "model": "huihui_ai/deepseek-r1-abliterated:14b", "swarm": 1},
-    {"code": "1.3", "role": "Especialista Backend", "model": "huihui_ai/qwen2.5-coder-abliterate:14b", "swarm": 1},
-    {"code": "1.4", "role": "Especialista Frontend", "model": "huihui_ai/qwen2.5-coder-abliterate:14b", "swarm": 1},
-    {"code": "1.5", "role": "Auditor Seguridad", "model": "huihui_ai/deepseek-r1-abliterated:14b", "swarm": 1},
+    {"code": "1.1", "role": "Archi-Investigador", "model": "ccia-reina-r1coder-14b:latest", "swarm": 1},
+    {"code": "1.2", "role": "Archi-Diseñador", "model": "ccia-reina-r1coder-14b:latest", "swarm": 1},
+    {"code": "1.3", "role": "Especialista Backend", "model": "ccia-coder-xl-14b:latest", "swarm": 1},
+    {"code": "1.4", "role": "Especialista Frontend", "model": "ccia-coder-xl-14b:latest", "swarm": 1},
+    {"code": "1.5", "role": "Auditor Seguridad", "model": "ccia-reina-r1coder-14b:latest", "swarm": 1},
     
     {"code": "2.1", "role": "Crítico Código", "model": "codestral:latest", "swarm": 2},
     {"code": "2.2", "role": "Optimizador Rendimiento", "model": "deepscaler:latest", "swarm": 2},
-    {"code": "2.3", "role": "Ingeniero Pruebas", "model": "huihui_ai/qwen2.5-coder-abliterate:14b", "swarm": 2},
+    {"code": "2.3", "role": "Ingeniero Pruebas", "model": "ccia-coder-xl-14b:latest", "swarm": 2},
     {"code": "2.4", "role": "Redactor Docs", "model": "mistral-nemo:12b", "swarm": 2},
-    {"code": "2.5", "role": "Integrador API", "model": "huihui_ai/qwen2.5-coder-abliterate:14b", "swarm": 2},
+    {"code": "2.5", "role": "Integrador API", "model": "ccia-coder-xl-14b:latest", "swarm": 2},
     
-    {"code": "3.1", "role": "Árbitro Calidad", "model": "huihui_ai/deepseek-r1-abliterated:14b", "swarm": 3},
-    {"code": "3.2", "role": "Estratega Bounties", "model": "huihui_ai/deepseek-r1-abliterated:14b", "swarm": 3},
+    {"code": "3.1", "role": "Árbitro Calidad", "model": "ccia-reina-r1coder-14b:latest", "swarm": 3},
+    {"code": "3.2", "role": "Estratega Bounties", "model": "ccia-reina-r1coder-14b:latest", "swarm": 3},
     {"code": "3.3", "role": "Especialista DB", "model": "qwen2.5-coder:14b", "swarm": 3},
-    {"code": "3.4", "role": "Gestor Despliegue", "model": "huihui_ai/qwen2.5-coder-abliterate:14b", "swarm": 3},
-    {"code": "3.5", "role": "Reina Mando", "model": "huihui_ai/deepseek-r1-abliterated:14b", "swarm": 3}
+    {"code": "3.4", "role": "Gestor Despliegue", "model": "ccia-coder-xl-14b:latest", "swarm": 3},
+    {"code": "3.5", "role": "Reina Mando", "model": "ccia-reina-r1coder-14b:latest", "swarm": 3}
 ]
 
 default_queens = [
-    {"code": "Q1", "role": "Reina Gobernanza & Estrategia", "model": "huihui_ai/deepseek-r1-abliterated:14b"},
-    {"code": "Q2", "role": "Reina Calidad & Seguridad", "model": "huihui_ai/qwen2.5-coder-abliterate:14b"},
+    {"code": "Q1", "role": "Reina Gobernanza & Estrategia", "model": "ccia-reina-r1coder-14b:latest"},
+    {"code": "Q2", "role": "Reina Calidad & Seguridad", "model": "ccia-coder-xl-14b:latest"},
     {"code": "Q3", "role": "Reina Finanzas & Bounties", "model": "mistral-nemo:12b"}
 ]
 
@@ -86,7 +86,7 @@ class TriSwarmOrchestrator:
         self.wallets = self._load_wallets()
         self.brains, self.queen_brains = self._load_swarm_config()
         
-        self.fallback_model = "huihui_ai/qwen2.5-coder-abliterate:14b"
+        self.fallback_model = "ccia-coder-xl-14b:latest"
         self.available_models = self._get_installed_models()
         self._init_db_tables()
 
