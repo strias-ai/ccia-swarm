@@ -51,7 +51,7 @@
     {
       "code": "2.4",
       "role": "Redactor Docs",
-      "model": "codellama:13b",
+      "model": "huihui_ai/qwen2.5-coder-abliterate:14b",
       "swarm": 2
     },
     {
@@ -105,7 +105,7 @@
     {
       "code": "Q3",
       "role": "Reina Finanzas & Bounties",
-      "model": "codellama:13b"
+      "model": "srchmnmichael/qwen3.5-9b-uncensored:latest"
     }
   ]
 }
