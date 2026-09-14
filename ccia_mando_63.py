@@ -1,27 +1,96 @@
-import os, sys, subprocess, signal, time
+import os
+import sys
+import json
+import sqlite3
+import subprocess
+import signal
+import time
+import re
+import urllib.request
+
+sys.path.append("/home/k1/ccia_workspace")
+from modules.art_63 import TriSwarmOrchestrator
+
+orch = TriSwarmOrchestrator()
+
+
+def handle_option_4_bounties():
+    print("\n🎯 SUBMENÚ Y BUSCADOR EVOLUTIVO DE BOUNTIES (ISSUEHUNT EXCLUSIVO):")
+    print("  [A] Ver Bounties Registrados en DB")
+    print("  [B] Ejecutar Buscador Evolutivo (IssueHunt API)")
+    print("  [C] Añadir Bounty Manualmente")
+    sub_opt = input("Submenú > ").strip().lower()
+    if sub_opt == "a":
+        print("\n📋 BOUNTIES REGISTRADOS EN BD (ISSUEHUNT):")
+        print("-" * 65)
+        try:
+            conn = sqlite3.connect("/home/k1/ccia_workspace/ccia_bounties.db", timeout=10.0)
+            c = conn.cursor()
+            c.execute(
+                "SELECT id, repo, title, issue_id, status FROM bounty_opportunities "
+                "WHERE repo NOT LIKE '%bounty-plaza%' AND title NOT LIKE '%bounty-plaza%' "
+                "ORDER BY id DESC LIMIT 20"
+            )
+            rows = c.fetchall()
+            conn.close()
+            if not rows:
+                print("  ℹ️ No hay bounties registrados en la base de datos.")
+            else:
+                for idx, r in enumerate(rows, 1):
+                    print(f"  {idx:2d}. [{r[4]}] {r[1]}#{r[3] or '?'} - {r[2][:55]}")
+        except Exception as e:
+            print(f"⚠️ Error al leer BD: {e}")
+        input("\n[Presione ENTER para continuar...]")
+    elif sub_opt == "b":
+        print("\n🔍 INICIANDO SCRAPER EXCLUSIVO ISSUEHUNT (GRAPHQL API)...")
+        print("-" * 65)
+        try:
+            import importlib, upgrade_bounty_scraper
+            importlib.reload(upgrade_bounty_scraper)
+            upgrade_bounty_scraper.fetch_issuehunt_bounties_exclusive()
+        except Exception as e:
+            print(f"⚠️ Error al ejecutar scraper: {e}")
+        input("\n[Presione ENTER para continuar...]")
+    elif sub_opt == "c":
+        url = input("Ingrese URL del Issue/Bounty: ").strip()
+        title = input("Ingrese Título/Descripción: ").strip()
+        if url and title:
+            try:
+                conn = sqlite3.connect("/home/k1/ccia_workspace/ccia_bounties.db", timeout=10.0)
+                c = conn.cursor()
+                issue_id = url.rstrip("/").split("/")[-1] if "/issues/" in url or "/pull/" in url else None
+                c.execute(
+                    "INSERT INTO bounty_opportunities (issue_url, repo, title, status, issue_id) "
+                    "VALUES (?, 'Manual', ?, 'PENDING', ?)",
+                    (url, title, issue_id)
+                )
+                conn.commit()
+                conn.close()
+                print("✅ Bounty registrado correctamente.")
+            except Exception as e:
+                print(f"⚠️ Error guardando bounty: {e}")
+        input("\n[Presione ENTER para continuar...]")
+
 
 def execute_daemon_toggle_art63():
     pid_file = '/tmp/art63_daemon.pid'
     log_file = '/tmp/art63_reasoning.log'
-    res = subprocess.run(['pgrep', '-f', 'art_63.py'], capture_output=True, text=True)
-    raw_pids = [p.strip() for p in res.stdout.strip().split() if p.strip()]
-    my_pid = str(os.getpid())
-    pids = [p for p in raw_pids if p != my_pid]
-
-    if pids or os.path.exists(pid_file):
-        print('\n🛑 DETENIENDO DEMONIO Y PROCESOS DUPLICADOS DE ARTEFACTO 63...')
-        subprocess.run(['pkill', '-9', '-f', 'art_63.py'], stderr=subprocess.DEVNULL)
-        if os.path.exists(pid_file):
-            try:
-                os.remove(pid_file)
-            except Exception:
-                pass
-        time.sleep(0.5)
-        print('✅ Demonio y subprocesos finalizados limpiamente.')
+    
+    # Detener forzosamente cualquier instancia previa
+    subprocess.run(['pkill', '-9', '-f', 'art_63.py'], stderr=subprocess.DEVNULL)
+    time.sleep(1)
+    
+    if os.path.exists(pid_file):
+        try:
+            os.remove(pid_file)
+        except Exception:
+            pass
+        print('\n🛑 DEMONIO ARTEFACTO 63 DETENIDO LIMPIAMENTE.')
     else:
-        print('\n🟢 INICIANDO DEMONIO ARTEFACTO 63 EN SEGUNDO PLANO (DESACOPLADO)...')
-        with open(log_file, 'a', encoding='utf-8') as f_log:
-            f_log.write('\n=== LOG REINICIADO DESDE CENTRO DE MANDO ===\n')
+        print('\n🟢 INICIANDO INSTANCIA ÚNICA DEL DEMONIO ARTEFACTO 63...')
+        with open(log_file, 'w', encoding='utf-8') as f_log:
+            f_log.write('=== LOG INICIADO (INSTANCIA ÚNICA) ===\n')
+        
         art63_script = '/home/k1/ccia_workspace/modules/art_63.py'
         log_fd = open(log_file, 'a', encoding='utf-8')
         proc = subprocess.Popen(
@@ -33,10 +102,7 @@ def execute_daemon_toggle_art63():
         )
         with open(pid_file, 'w') as pf:
             pf.write(str(proc.pid))
-        print(f'✅ Demonio desacoplado iniciado correctamente con PID {proc.pid}.')
-        print('👉 Usa la opción [8] o [10] para monitorear el razonamiento sin fuga en pantalla.')
-
-import os, sys, subprocess, signal, time
+        print(f'✅ Demonio iniciado correctamente con PID único {proc.pid}.')
 
 
 def fetch_bounty_context(repo_issue: str) -> str:
@@ -55,29 +121,12 @@ def fetch_bounty_context(repo_issue: str) -> str:
         return f"Contexto local del issue: {repo_issue} (No se pudo conectar a GitHub API: {e})"
     return f"Contexto de la tarea: {repo_issue}"
 
-def clean_r1_output(text: str) -> str:
-    """Limpia las trazas de pensamiento <think> de DeepSeek-R1"""
-    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
-    return cleaned.strip()
-
 
 def clean_r1_output(text: str) -> str:
     """Elimina el bloque de pensamiento de DeepSeek-R1 y deja solo la respuesta de gobernanza."""
     cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
     return cleaned.strip()
 
-from modules.repo_inspector import RepoInspector
-import os
-import sys
-import json
-import sqlite3
-import subprocess
-import time
-
-sys.path.append("/home/k1/ccia_workspace")
-from modules.art_63 import TriSwarmOrchestrator
-
-orch = TriSwarmOrchestrator()
 
 def print_header():
     os.system("clear" if os.name == "posix" else "cls")
@@ -101,8 +150,8 @@ def print_header():
     print(f" Cerrojo Mutex (/tmp)          : {mutex_status}")
     print("-" * 80)
 
+
 def show_mando_menu():
-    import os, subprocess
     while True:
         print_header()
         print("  [1] 📋 Ver Mapeo Actual y Estado del Enjambre")
@@ -132,6 +181,7 @@ def show_mando_menu():
             for q in orch.queen_brains:
                 print(f"  👑 [REINA {q['code']}] {q['role']} --> {q['model']}")
             input("\n[Presione ENTER para continuar...]")
+
         elif opt == "2":
             print("\n🧠 RECONFIGURACIÓN DE MODELOS OLLAMA:")
             print("Modelos instalados detectados:")
@@ -169,30 +219,7 @@ def show_mando_menu():
             input("\n[Presione ENTER para continuar...]")
 
         elif opt == "4":
-            print("\n🎯 SUBMENÚ Y BUSCADOR EVOLUTIVO DE BOUNTIES:")
-            print("  [A] Ver Bounties Registrados en DB")
-            print("  [B] Ejecutar Buscador Evolutivo (Scraper GitHub/Feeds)")
-            print("  [C] Añadir Bounty Manualmente")
-            sub_opt = input("Submenú > ").strip().upper()
-            if sub_opt == "A":
-                bounties = orch.fetch_pending_bounties_from_db()
-                for idx, b in enumerate(bounties, 1):
-                    print(f"  {idx}. {b[0]}#{b[1]} - {b[2]}")
-            elif sub_opt == "B":
-                orch.evolutionary_bounty_searcher()
-            elif sub_opt == "C":
-                r = input("Repo (org/repo) > ").strip()
-                i = input("Issue ID > ").strip()
-                t = input("Título > ").strip()
-                if r and i:
-                    try:
-                        conn = sqlite3.connect(orch.db_path)
-                        conn.cursor().execute("INSERT INTO bounty_opportunities (repo, issue_id, title) VALUES (?, ?, ?)", (r, i, t))
-                        conn.commit()
-                        conn.close()
-                        print("✅ Bounty guardado.")
-                    except Exception as e: print(f"Error: {e}")
-            input("\n[Presione ENTER para continuar...]")
+            handle_option_4_bounties()
 
         elif opt == "5":
             print("\n💳 CARTERAS MULTICADENA DE RECEPCIÓN CONFIGURADAS:")
@@ -231,7 +258,7 @@ def show_mando_menu():
             try:
                 conn = sqlite3.connect(orch.db_path)
                 cur = conn.cursor()
-                cur.execute("SELECT repo, issue_id, reviewer_queen, score, status, timestamp FROM proposal_reviews ORDER BY id DESC LIMIT 10;")
+                cur.execute("SELECT repo, issue_id, reviewer_queen, score, status, timestamp FROM bounty_opportunities ORDER BY id DESC LIMIT 10;")
                 rows = cur.fetchall()
                 conn.close()
                 if rows:
@@ -266,7 +293,8 @@ def show_mando_menu():
                     cur.execute(f"SELECT COUNT(*) FROM {tbl};")
                     print(f"  • Tabla '{tbl}': {cur.fetchone()[0]} registros")
                 conn.close()
-            except Exception as e: print(f"Error DB: {e}")
+            except Exception as e:
+                print(f"Error DB: {e}")
             input("\n[Presione ENTER para continuar...]")
 
         elif opt == "10":
@@ -281,15 +309,17 @@ def show_mando_menu():
                 if os.path.exists(log_file):
                     with open(log_file, "r", encoding="utf-8", errors="ignore") as lf:
                         lines = lf.readlines()
-                        print("".join(lines[-40:] if len(lines)>=40 else lines))
-                else: print("Log de razonamiento no encontrado.")
+                        print("".join(lines[-40:] if len(lines) >= 40 else lines))
+                else:
+                    print("Log de razonamiento no encontrado.")
             elif sub10 == "B":
                 log_file = "/tmp/art63_daemon.log"
                 if os.path.exists(log_file):
                     with open(log_file, "r", encoding="utf-8", errors="ignore") as lf:
                         lines = lf.readlines()
-                        print("".join(lines[-40:] if len(lines)>=40 else lines))
-                else: print("Log de daemon no encontrado.")
+                        print("".join(lines[-40:] if len(lines) >= 40 else lines))
+                else:
+                    print("Log de daemon no encontrado.")
             elif sub10 == "C":
                 print("  • Estado AST: CERTIFIED (100% Sin Errores de Sintaxis)")
                 print("  • Módulo Principal: /home/k1/ccia_workspace/modules/art_63.py")
@@ -312,30 +342,20 @@ def show_mando_menu():
                 print("⚡ Bucle 24/7 Artefacto 62 ACTIVADO.")
             input("\n[Presione ENTER para continuar...]")
 
-        elif opt == '12':
-            import subprocess, os, signal
-            pid_file = "/tmp/art63_daemon.pid"
-            res = subprocess.run(["pgrep", "-f", "art_63.py --daemon"], capture_output=True, text=True)
-            pids = [p.strip() for p in res.stdout.strip().split("\n") if p.strip()]
-            if pids:
-                print(f"\n⚠️ Se detectaron {len(pids)} daemon(s) activo(s). Deteniendo...")
-                for p in pids:
-                    try:
-                        os.kill(int(p), signal.SIGKILL)
-                    except Exception:
-                        pass
-                if os.path.exists(pid_file):
-                    os.remove(pid_file)
-                print("🔴 Daemon del Artefacto 63 DETENIDO limpiamente.")
-            else:
-                print("\n🚀 Iniciando única instancia del Daemon...")
-                log_f = open("/tmp/art63_daemon.log", "w")
-                proc = subprocess.Popen([
-                    "python3", "-u", "/home/k1/ccia_workspace/modules/art_63.py", "--daemon"
-                ], stdout=log_f, stderr=subprocess.STDOUT, start_new_session=True)
-                with open(pid_file, "w") as f:
-                    f.write(str(proc.pid))
-                print(f"🟢 Daemon iniciado con PID único: {proc.pid}")
-            input("\nPresione ENTER para continuar...")
+        elif opt == "12":
+            execute_daemon_toggle_art63()
+            input("\n[Presione ENTER para continuar...]")
+
+        elif opt == "13":
+            print("\n👑 GOBERNANZA DE REINAS (Q1, Q2, Q3):")
+            for q in orch.queen_brains:
+                print(f"  • [REINA {q['code']}] {q['role']} --> Modelo: {q['model']}")
+            input("\n[Presione ENTER para continuar...]")
+
+        elif opt == "0":
+            print("🚪 Saliendo del Centro de Mando...")
+            break
+
+
 if __name__ == '__main__':
     show_mando_menu()

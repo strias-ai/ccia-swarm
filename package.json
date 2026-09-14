@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "acorn": "^8.18.0",
+    "esprima": "^4.0.1"
+  }
+}
