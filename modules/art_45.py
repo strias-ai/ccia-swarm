@@ -1,3 +1,4 @@
+import ast
 # -*- coding: utf-8 -*-
 """
 CCiA GitHub Librarian Agent & Auto-Publisher (Artefacto 45 v4.0 Super-Control)
@@ -113,6 +114,21 @@ def approve_and_publish():
     dispatch_publication(req_id, repo, target_ver, notes)
     conn.close()
 
+def validate_modified_ast():
+    """Valida la sintaxis de todos los archivos .py modificados antes de publicar."""
+    import subprocess
+    res = subprocess.run("git status --porcelain", shell=True, capture_output=True, text=True)
+    for line in res.stdout.splitlines():
+        file_path = line.strip().split()[-1]
+        if file_path.endswith('.py') and os.path.exists(file_path):
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    ast.parse(f.read())
+            except Exception as e:
+                print(f"❌ [BLOQUEO AST] El archivo {file_path} tiene errores de sintaxis: {e}")
+                return False
+    return True
+
 def dispatch_publication(req_id, repo, target_ver, notes):
     console.print(f"\n[bold cyan]🚀 Desplegando `{repo}` ({target_ver}) a GitHub...[/bold cyan]")
     execute_git_cmd("git add .")
@@ -127,6 +143,9 @@ def dispatch_publication(req_id, repo, target_ver, notes):
     c = conn.cursor()
     if req_id:
         c.execute("UPDATE github_pub_requests SET status = 'PUBLISHED_AND_DISPATCHED' WHERE id = ?", (req_id,))
+        conn = sqlite3.connect('/home/k1/university.db')
+    c = conn.cursor()
+    c.execute("CREATE TABLE IF NOT EXISTS github_catalog (id INTEGER PRIMARY KEY AUTOINCREMENT, repo_name TEXT UNIQUE, current_version TEXT, commit_sha TEXT, last_synced_at TEXT)")
     c.execute("UPDATE github_catalog SET current_version = ?, commit_sha = ?, last_synced_at = ? WHERE repo_name = ?", (target_ver, new_sha, now, repo))
     
     c.execute("""
