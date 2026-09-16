@@ -1,3 +1,16 @@
+import sqlite3
+
+def init_art45_tables():
+    conn = sqlite3.connect('/home/k1/university.db')
+    c = conn.cursor()
+    c.execute("CREATE TABLE IF NOT EXISTS github_catalog (id INTEGER PRIMARY KEY AUTOINCREMENT, repo_name TEXT UNIQUE, current_version TEXT, commit_sha TEXT, last_synced_at TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS github_pub_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, repo_name TEXT, target_version TEXT, reason TEXT, release_notes TEXT, status TEXT DEFAULT 'PENDING', created_at TEXT DEFAULT (datetime('now')), approved_at TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS github_audit_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT, details TEXT, timestamp TEXT DEFAULT (datetime('now')))")
+    conn.commit()
+    conn.close()
+
+init_art45_tables()
+
 import ast
 # -*- coding: utf-8 -*-
 """
@@ -17,7 +30,7 @@ MODULES_DIR = os.path.join(WORKSPACE_DIR, "modules")
 DB_PATH = os.path.join(WORKSPACE_DIR, "university.db")
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect('/home/k1/university.db')
     c = conn.cursor()
     c.execute("""
         CREATE TABLE IF NOT EXISTS ccia_artifact_changelog (
@@ -43,7 +56,7 @@ def run_difference_audit():
     console.print("\n[bold cyan]🔍 AUDITORÍA DE SINCRONIZACIÓN Y COBERTURA CCiA[/bold cyan]")
     physical_files = sorted([f for f in os.listdir(MODULES_DIR) if f.endswith('.py')]) if os.path.exists(MODULES_DIR) else []
     
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect('/home/k1/university.db')
     c = conn.cursor()
     manifests = c.execute("SELECT artifact_id, name, main_script FROM ccia_artifact_manifests ORDER BY CAST(artifact_id AS INTEGER)").fetchall()
     conn.close()
@@ -64,7 +77,7 @@ def run_difference_audit():
     console.print("  • Estado con remoto GitHub:                  [bold green]Sincronizado[/bold green]\n")
 
 def view_catalog():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect('/home/k1/university.db')
     c = conn.cursor()
     repos = c.execute("SELECT repo_name, current_version, commit_sha, last_synced_at FROM github_catalog").fetchall()
     conn.close()
@@ -80,7 +93,7 @@ def view_catalog():
     console.print(table)
 
 def approve_and_publish():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect('/home/k1/university.db')
     c = conn.cursor()
     pending = c.execute("SELECT id, repo_name, target_version, reason, release_notes FROM github_pub_requests WHERE status = 'PENDING'").fetchall()
     
@@ -139,7 +152,7 @@ def dispatch_publication(req_id, repo, target_ver, notes):
     new_sha = execute_git_cmd("git rev-parse --short HEAD")
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect('/home/k1/university.db')
     c = conn.cursor()
     if req_id:
         c.execute("UPDATE github_pub_requests SET status = 'PUBLISHED_AND_DISPATCHED' WHERE id = ?", (req_id,))
@@ -190,7 +203,7 @@ def run_auto_publisher_watcher():
         dispatch_publication(None, "ccia-swarm", auto_ver, notes)
 
 def view_audit_history():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect('/home/k1/university.db')
     c = conn.cursor()
     logs = c.execute("SELECT checked_at, local_artifacts_count, remote_artifacts_count, audit_log FROM github_sync_audit ORDER BY id DESC LIMIT 10").fetchall()
     conn.close()
@@ -235,7 +248,7 @@ def super_telemetry_audit_files():
 
 def super_matrix_sync_audit():
     console.print("\n[bold cyan]🔗 MATRIZ DE TRAZABILIDAD PUNTO A PUNTO (DISCO vs BD vs GIT)[/bold cyan]")
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect('/home/k1/university.db')
     c = conn.cursor()
     manifests = c.execute("SELECT artifact_id, name, version, main_script FROM ccia_artifact_manifests ORDER BY CAST(artifact_id AS INTEGER)").fetchall()
     conn.close()
@@ -272,7 +285,7 @@ def super_self_diagnostics():
 def super_cascade_report():
     console.print("\n[bold cyan]🌊 GENERANDO INFORME EN CASCADA PARA COPIAR AL CHAT...[/bold cyan]\n")
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect('/home/k1/university.db')
     c = conn.cursor()
     manifest_count = c.execute("SELECT COUNT(*) FROM ccia_artifact_manifests").fetchone()[0]
     pub_req_count = c.execute("SELECT COUNT(*) FROM github_pub_requests").fetchone()[0]
