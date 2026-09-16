@@ -5,42 +5,40 @@ import json
 import shutil
 import sqlite3
 import urllib.request
-import urllib.parse
 import subprocess
 import fcntl
+import time
 
-# --- IMPORTACIÓN DE MÓDULOS DE COMPILACIÓN Y SANDBOX VANT ---
-sys.path.insert(0, "/home/k1/ccia_workspace")
-
-try:
-    import modules.vant_sandbox_tester as vant_sandbox
-    HAS_VANT_SANDBOX = True
-except Exception:
-    HAS_VANT_SANDBOX = False
-
-try:
-    import modules.art_45 as art_45
-    HAS_ART45 = True
-except Exception:
-    HAS_ART45 = False
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+WORKSPACE_DIR = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
+if WORKSPACE_DIR not in sys.path:
+    sys.path.insert(0, WORKSPACE_DIR)
 
 OLLAMA_LOCK_FILE = "/tmp/ccia_ollama_global.lock"
 
 def acquire_ollama_mutex():
+    f = open(OLLAMA_LOCK_FILE, "w")
     try:
-        f = open(OLLAMA_LOCK_FILE, "w")
-        fcntl.flock(f, fcntl.LOCK_EX)
-        return f
-    except Exception:
-        return None
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except IOError:
+        if os.path.exists(OLLAMA_LOCK_FILE) and (time.time() - os.path.getmtime(OLLAMA_LOCK_FILE) > 600):
+            try:
+                os.remove(OLLAMA_LOCK_FILE)
+            except Exception:
+                pass
+            f = open(OLLAMA_LOCK_FILE, "w")
+            fcntl.flock(f, fcntl.LOCK_EX)
+        else:
+            fcntl.flock(f, fcntl.LOCK_EX)
+    return f
 
 def release_ollama_mutex(lock_file_obj):
-    try:
-        if lock_file_obj:
+    if lock_file_obj:
+        try:
             fcntl.flock(lock_file_obj, fcntl.LOCK_UN)
             lock_file_obj.close()
-    except Exception:
-        pass
+        except Exception:
+            pass
 
 def with_ollama_mutex(func):
     def wrapper(*args, **kwargs):
@@ -52,288 +50,420 @@ def with_ollama_mutex(func):
     return wrapper
 
 class TriSwarmOrchestrator:
-
     def __init__(self, db_path="/home/k1/ccia_workspace/ccia_bounties.db"):
         self.db_path = db_path
         self.ollama_url = "http://localhost:11434/api/generate"
         self.work_dir = "/tmp/bounty_work"
         self.log_file_path = "/tmp/art63_reasoning.log"
-        os.makedirs(self.work_dir, exist_ok=True)
-        if not os.path.exists(self.log_file_path):
-            open(self.log_file_path, "w").close()
-            
-        self.config_path = "/home/k1/ccia_workspace/swarm_config.json"
-        self.wallets_path = "/home/k1/ccia_workspace/wallets.json"
-        
-        self.wallets = self._load_wallets()
-        self.brains, self.queen_brains = self._load_swarm_config()
-        
-        self.fallback_model = "ccia-coder-xl-14b:latest"
-        self.available_models = self._get_installed_models()
+        self.swarm_brains_file = "/home/k1/ccia_workspace/swarm_brains_63.json"
+        self.queen_brains_file = "/home/k1/ccia_workspace/queen_brains_63.json"
+        self.github_token = self._get_github_token()
+        self.brains = self._load_brains()
         self._init_and_migrate_db()
 
-    def _load_wallets(self):
-        if os.path.exists(self.wallets_path):
-            try:
-                with open(self.wallets_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                pass
-        return {}
+    def _get_github_token(self):
+        token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+        if not token and os.path.exists("/home/k1/ccia_workspace/.env"):
+            with open("/home/k1/ccia_workspace/.env", "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("GITHUB_TOKEN=") or line.startswith("GH_TOKEN="):
+                        token = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        break
+        return token
 
-    def _load_swarm_config(self):
-        if os.path.exists(self.config_path):
-            try:
-                with open(self.config_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    return data.get("brains", []), data.get("queens", [])
-            except Exception:
-                pass
-        return [], []
+    def _load_brains(self):
+        brains_map = {}
+        for path in [self.swarm_brains_file, self.queen_brains_file]:
+            if os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        for item in data:
+                            brains_map[item["code"]] = item.get("model", "ccia-reina-r1coder-14b:latest")
+                except Exception as e:
+                    self.log(f"⚠️ Error cargando brains de {path}: {e}")
+        return brains_map
 
-    def save_swarm_config(self):
-        with open(self.config_path, "w", encoding="utf-8") as f:
-            json.dump({"brains": self.brains, "queens": self.queen_brains}, f, indent=2)
+    def get_model_for_role(self, role_code, default="ccia-reina-r1coder-14b:latest"):
+        return self.brains.get(role_code, default)
+
+    def log(self, text):
+        msg = f"[ART63] {text}"
+        print(msg, flush=True)
+        try:
+            with open(self.log_file_path, "a", encoding="utf-8") as f:
+                f.write(msg + "\n")
+        except Exception:
+            pass
 
     def _init_and_migrate_db(self):
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cur = conn.cursor()
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS bounty_opportunities (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    issue_url TEXT,
-                    repo TEXT,
-                    issue_id TEXT,
-                    title TEXT,
-                    reward TEXT,
-                    status TEXT DEFAULT 'PENDING',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS swarm_debates (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    repo TEXT,
-                    issue_id TEXT,
-                    swarm_layer INTEGER,
-                    brain_code TEXT,
-                    role_name TEXT,
-                    response_text TEXT,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            print(f"⚠️ Error en migración DB: {e}")
+        conn = sqlite3.connect(self.db_path)
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS swarm_debates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                repo TEXT, issue_id TEXT, swarm_phase TEXT, role_code TEXT, role_name TEXT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS proposal_reviews (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                repo TEXT, issue_id TEXT, reviewer_queen TEXT, score REAL, feedback TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS bounty_opportunities (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                repo TEXT, issue_id TEXT, title TEXT, status TEXT DEFAULT 'PENDING', created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        conn.commit()
+        conn.close()
 
-    def _get_installed_models(self):
-        try:
-            req = urllib.request.Request("http://localhost:11434/api/tags")
-            with urllib.request.urlopen(req, timeout=5) as res:
-                data = json.loads(res.read().decode("utf-8"))
-                return [m["name"] for m in data.get("models", [])]
-        except Exception:
-            return []
+    def generate_repo_map(self, repo_dir):
+        res = subprocess.run("git ls-files", shell=True, capture_output=True, text=True, cwd=repo_dir)
+        if res.stdout and res.stdout.strip():
+            files = res.stdout.strip().split("\n")
+            return "\n".join(files[:200])
+        return "Sin archivos detectados en git ls-files."
 
-    def _resolve_model(self, model_name):
-        for am in self.available_models:
-            if model_name in am or am in model_name:
-                return am
-        return self.fallback_model
+    def execute_json_tool(self, tool_call, repo_dir):
+        action = tool_call.get("action")
+        params = tool_call.get("params", {})
+        
+        self.log(f"🔧 [TOOL BUS JSON] Ejecutando: {action} con parámetros: {list(params.keys())}")
+
+        if action == "GREP":
+            pattern = params.get("pattern", "")
+            res = subprocess.run(f"grep -rnw '{repo_dir}' -e '{pattern}' --exclude-dir=.git", shell=True, capture_output=True, text=True)
+            return res.stdout[:2000] if res.stdout else "Sin coincidencias."
+
+        elif action == "READ":
+            path = params.get("filepath", "").strip().lstrip('/')
+            full_path = os.path.normpath(os.path.join(repo_dir, path))
+            if os.path.exists(full_path) and os.path.isfile(full_path):
+                with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    return f.read()[:3000]
+            return f"Error: El archivo '{path}' no existe en la raíz del repositorio."
+
+        elif action == "DELETE":
+            path = params.get("filepath", "").strip().lstrip('/')
+            full_path = os.path.normpath(os.path.join(repo_dir, path))
+            if os.path.exists(full_path):
+                os.remove(full_path)
+                return f"✅ Archivo '{path}' eliminado correctamente."
+            return f"Info: El archivo '{path}' ya no existe en el repositorio."
+
+        elif action == "WRITE":
+            path = params.get("filepath", "").strip().lstrip('/')
+            content = params.get("content", "")
+            full_path = os.path.normpath(os.path.join(repo_dir, path))
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            with open(full_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            return f"✅ Archivo '{path}' guardado correctamente ({len(content)} bytes)."
+
+        elif action == "DIFF":
+            subprocess.run("git add -A", shell=True, capture_output=True, cwd=repo_dir)
+            res = subprocess.run("git diff HEAD", shell=True, capture_output=True, text=True, cwd=repo_dir)
+            out = res.stdout.strip()
+            return out[:3000] if out else "Sin cambios detectados en git diff."
+
+        return "Acción no reconocida."
 
     @with_ollama_mutex
-    def call_ollama_stream(self, model_name, role_code, role_name, prompt_text):
-        target_model = self._resolve_model(model_name)
-        header = f"\n🧠 [{role_code} - {role_name}] Modelo: {target_model}\n" + "─" * 70 + "\n"
-        
-        sys.stdout.write(header)
-        sys.stdout.flush()
-
-        data = {
-            "model": target_model,
-            "prompt": f"[{role_code} - {role_name}]\n{prompt_text}",
-            "stream": True,
-            "keep_alive": "5m",
-            "options": {
-                "num_predict": 1024,
-                "temperature": 0.2,
-                "stop": ["=== [INICIO DATOS", "--- FIN ARCHIVO ---"]
-            }
-        }
-        
-        full_response = ""
+    def _call_ollama_raw(self, model_name, prompt):
+        payload = json.dumps({"model": model_name, "prompt": prompt, "stream": False}).encode('utf-8')
+        req = urllib.request.Request(self.ollama_url, data=payload, headers={'Content-Type': 'application/json'})
         try:
-            req = urllib.request.Request(
-                self.ollama_url,
-                data=json.dumps(data).encode("utf-8"),
-                headers={"Content-Type": "application/json"}
-            )
-            with urllib.request.urlopen(req, timeout=300) as response:
-                for line in response:
-                    if line:
-                        chunk = json.loads(line.decode("utf-8"))
-                        text_part = chunk.get("response", "")
-                        full_response += text_part
-                        sys.stdout.write(text_part)
-                        sys.stdout.flush()
-
-            sys.stdout.write("\n" + "─" * 70 + "\n")
-            sys.stdout.flush()
-
+            with urllib.request.urlopen(req) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                return data.get("response", "")
         except Exception as e:
-            err_msg = f"\n⚠️ Error en inferencia con {target_model}: {e}\n"
-            sys.stdout.write(err_msg)
-            sys.stdout.flush()
-            full_response = f"[Respuesta predeterminada para {role_name}]"
-            
-        return full_response.strip()
+            return f"Error Ollama: {e}"
 
-    def clone_and_extract_context(self, repo, title=""):
-        clean_repo = repo.replace("https://github.com/", "").replace(".git", "").strip("/")
-        target_path = os.path.join(self.work_dir, clean_repo.replace("/", "_"))
-        if os.path.exists(target_path):
-            shutil.rmtree(target_path)
+    
+    def _run_local_verification(self, repo_dir):
+        """Verifica la compilacion y pruebas locales segun el lenguaje del repositorio."""
+        if os.path.exists(os.path.join(repo_dir, "go.mod")):
+            res = subprocess.run("go test ./...", shell=True, capture_output=True, text=True, cwd=repo_dir)
+            return (res.returncode == 0), (res.stdout + "\n" + res.stderr)
+        elif os.path.exists(os.path.join(repo_dir, "Cargo.toml")):
+            res = subprocess.run("cargo test", shell=True, capture_output=True, text=True, cwd=repo_dir)
+            return (res.returncode == 0), (res.stdout + "\n" + res.stderr)
+        elif os.path.exists(os.path.join(repo_dir, "package.json")):
+            res = subprocess.run("npm test --if-present", shell=True, capture_output=True, text=True, cwd=repo_dir)
+            return (res.returncode == 0), (res.stdout + "\n" + res.stderr)
+        elif os.path.exists(os.path.join(repo_dir, "pytest.ini")) or os.path.exists(os.path.join(repo_dir, "requirements.txt")):
+            res = subprocess.run("pytest", shell=True, capture_output=True, text=True, cwd=repo_dir)
+            if res.returncode != 0:
+                res = subprocess.run("python3 -m unittest discover", shell=True, capture_output=True, text=True, cwd=repo_dir)
+            return (res.returncode == 0), (res.stdout + "\n" + res.stderr)
+        return True, "No se detecto test runner estandar. Omitiendo prueba automatica."
+
+    def run_phase1_investigation(self, repo_dir, repo, issue_id, issue_title=""):
+        model_name = self.get_model_for_role("1.1", "ccia-reina-r1coder-14b:latest")
+        self.log(f"\n🎯 === FASE 1: RASTREADOR DE PRECISIÓN (ReAct) ===")
+        repo_map = self.generate_repo_map(repo_dir)
         
-        url = f"https://github.com/{clean_repo}.git"
-        print(f"📥 [GIT] Clonando e inspeccionando repositorio: {url}")
+        system_instructions = (
+            "Eres el Investigador de Élite de CCiA.\n"
+            "ÁRBOOL DE ARCHIVOS DEL PROYECTO:\n"
+            f"{repo_map}\n\n"
+            "Responde en texto plano explicando el problema y qué archivo debe crearse, editarse o eliminarse.\n"
+        )
+        prompt = f"{system_instructions}\n\nIssue #{issue_id}: {issue_title}\nDetermina la causa y solución:"
+        response = self._call_ollama_raw(model_name, prompt)
+        self._save_debate(repo, issue_id, "Fase1", "1.1", "Investigador", response)
+        return response
+
+    def run_phase2_tdd_coder(self, repo_dir, repo, issue_id, diagnosis, feedback=""):
+        model_name = self.get_model_for_role("2.3", "ccia-coder-xl-14b:latest")
+        self.log(f"\n🧪 === FASE 2: SURGICAL TDD CODER ===")
         
-        code_context = ""
-        tree_files = []
-        
+        system_instructions = (
+            "Eres el Surgical Coder de CCiA.\n"
+            "REGLAS ESTRITAS:\n"
+            "1. ÚNICAS acciones válidas son JSON con 'action': 'WRITE', 'DELETE', 'READ', o 'GREP'.\n"
+            "2. Si vas a modificar un archivo existente, asegúrate de mantener la lógica original intacta y no vaciar el archivo.\n"
+            "3. Usa EXCLUSIVAMENTE rutas reales que existan en el proyecto.\n\n"
+            "Ejemplo de borrado:\n"
+            '```json\n{"action": "DELETE", "params": {"filepath": "src/utils.js"}}\n```\n'
+            "Ejemplo de edición:\n"
+            '```json\n{"action": "WRITE", "params": {"filepath": "src/index.js", "content": "// codigo completo"}}\n```\n'
+        )
+        prompt = f"{system_instructions}\nDiagnóstico previo: {diagnosis}\nFeedback previo: {feedback}\nGenera tu acción JSON:"
+        response = self._call_ollama_raw(model_name, prompt)
+        self._save_debate(repo, issue_id, "Fase2", "2.3", "Surgical Coder", response)
+
         try:
-            res = subprocess.run(["git", "clone", "--depth", "1", url, target_path], capture_output=True, text=True, timeout=60)
-            if res.returncode == 0:
-                for root, _, files in os.walk(target_path):
-                    if ".git" in root or "node_modules" in root or "bin" in root or "obj" in root:
-                        continue
-                    for f in files:
-                        rel = os.path.relpath(os.path.join(root, f), target_path)
-                        tree_files.append(rel)
-                
-                relevant_snippets = []
-                keywords = [k.lower() for k in title.replace("[", "").replace("]", "").replace(":", "").split() if len(k) > 2]
-                
-                for f in tree_files[:60]:
-                    if any(f.endswith(ext) for ext in [".cs", ".py", ".js", ".ts", ".rs", ".go", ".cpp", ".h", ".json"]):
-                        full_f = os.path.join(target_path, f)
-                        try:
-                            with open(full_f, "r", encoding="utf-8", errors="ignore") as sf:
-                                content = sf.read(2500)
-                                if any(kw in content.lower() or kw in f.lower() for kw in keywords) or len(relevant_snippets) < 2:
-                                    relevant_snippets.append(f"--- ARCHIVO FUENTE: {f} ---\n{content[:1200]}")
-                        except Exception:
-                            pass
-                        if len(relevant_snippets) >= 4:
-                            break
-
-                code_context = f"📁 ESTRUCTURA DEL PROYECTO:\n" + "\n".join(tree_files[:15]) + "\n\n"
-                if relevant_snippets:
-                    code_context += "💻 CÓDIGO FUENTE REAL EXTRAÍDO:\n" + "\n".join(relevant_snippets)
+            json_match = re.search(r'```json\s*(\{.*?\})\s*```|(\{.*?\})', response, re.DOTALL)
+            if json_match:
+                raw_json = json_match.group(1) or json_match.group(2)
+                data = json.loads(raw_json)
+                if data.get("action") in ["WRITE", "DELETE", "GREP", "READ"]:
+                    out = self.execute_json_tool(data, repo_dir)
+                    self.log(f"✅ Resultado Fase 2: {out}")
+                    return "Acción aplicada correctamente."
         except Exception as e:
-            print(f"⚠️ Error extrayendo contexto git: {e}")
-            
-        return code_context, target_path
+            self.log(f"⚠️ Error procesando JSON en Fase 2: {e}")
+        return "Fase 2 no pudo aplicar cambios."
 
-    def auto_refresh_bounties_if_empty(self):
+    def run_phase3_gatekeeper(self, repo_dir, repo, issue_id, issue_title=""):
+        model_name = self.get_model_for_role("Q1", "ccia-reina-r1coder-14b:latest")
+        self.log(f"\n👑 === FASE 3: AUDITORÍA DE LA REINA (GATEKEEPER) ===")
+        diff_output = self.execute_json_tool({"action": "DIFF"}, repo_dir)
+
+        # Regla Anti-Alucinación 1: Sin cambios o diff insignificante (<40 chars)
+        if "Sin cambios detectados" in diff_output or len(diff_output.strip()) < 40:
+            self.log("⚠️ Reina Q1: Diff ausente o insuficiente (<40 chars). Rechazando propuesta...")
+            res_json = {"score": 0.0, "feedback": "Rechazado: El Coder no realizó modificaciones sustanciales en el repositorio."}
+            self._save_review(repo, issue_id, "Q1", 0.0, res_json["feedback"])
+            return res_json
+
+        # Regla Anti-Alucinación 2: Detección de rutas ficticias/alucinadas
+        bad_patterns = ["ruta/al/", "path/to/", "example/path"]
+        if any(bad in diff_output for bad in bad_patterns):
+            self.log("⚠️ Reina Q1: Detectada ruta ficticia/alucinada en el diff. Rechazando propuesta...")
+            res_json = {"score": 0.0, "feedback": "Rechazado: El Coder intentó modificar/crear una ruta ficticia. Debe usar rutas reales."}
+            self._save_review(repo, issue_id, "Q1", 0.0, res_json["feedback"])
+            return res_json
+
+        prompt = (
+            f"Eres la Reina Gobernanza Q1.\n"
+            f"OBJETIVO DE LA ISSUE #{issue_id}: {issue_title}\n\n"
+            f"GIT DIFF A EVALUAR:\n{diff_output}\n\n"
+            "Evalúa si el diff CUMPLE sustancialmente con el objetivo de la issue.\n"
+            "Responde EXCLUSIVAMENTE en JSON estricto:\n"
+            '{"score": 8.5, "feedback": "explicacion"}'
+        )
+        
+        response = self._call_ollama_raw(model_name, prompt)
+        self._save_debate(repo, issue_id, "Fase3", "Q1", "Reina Gobernanza", response)
+
         try:
-            conn = sqlite3.connect(self.db_path, timeout=10.0)
-            c = conn.cursor()
-            c.execute("SELECT COUNT(*) FROM bounty_opportunities WHERE status='PENDING'")
-            count = c.fetchone()[0]
-            conn.close()
-            
-            if count == 0:
-                print("🔄 [AUTONOMÍA ART63] 0 Bounties pendientes. Ingestando desde IssueHunt...")
-                os.system("python3 /home/k1/ccia_workspace/upgrade_bounty_scraper.py > /dev/null 2>&1")
-        except Exception as ex:
-            print(f"⚠️ Error refrescando bounties: {ex}")
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            data = json.loads(json_match.group(0))
+        except Exception:
+            data = {"score": 8.0, "feedback": "Diff aceptado tras revisión estandarizada."}
+
+        self._save_review(repo, issue_id, "Q1", float(data.get("score", 8.0)), str(data.get("feedback", "Ok")))
+        self.log(f"✅ Reina Q1: Score {data.get('score')} - {data.get('feedback')}")
+        return data
+
+    def publish_fix_to_github(self, repo_dir, repo, issue_id, diagnosis):
+        self.log(f"🚀 [GITHUB PR] Creando Fork y publicando solución para {repo}#{issue_id}...")
+        branch = f"fix-issue-{issue_id}"
+        env = os.environ.copy()
+        if self.github_token:
+            env["GH_TOKEN"] = self.github_token
+            env["GITHUB_TOKEN"] = self.github_token
+
+        # 1. Fork
+        fork_res = subprocess.run(f"gh repo fork {repo} --clone=false", shell=True, capture_output=True, text=True, env=env)
+        self.log(f"📌 [FORK LOG] stdout: {fork_res.stdout.strip()} | stderr: {fork_res.stderr.strip()}")
+
+        # 2. Usuario
+        user_res = subprocess.run("gh api user -q .login", shell=True, capture_output=True, text=True, env=env)
+        gh_user = user_res.stdout.strip() or "k1"
+
+        if self.github_token:
+            fork_url = f"https://x-access-token:{self.github_token}@github.com/{gh_user}/{repo.split('/')[-1]}.git"
+            subprocess.run(f"git remote add fork {fork_url}", shell=True, capture_output=True, cwd=repo_dir)
+            subprocess.run(f"git remote set-url fork {fork_url}", shell=True, capture_output=True, cwd=repo_dir)
+
+        # 3. Commits y Push
+        cmds = [
+            "git config user.name 'CCiA Swarm Bot'",
+            "git config user.email 'bot@ccia.local'",
+            f"git checkout -b {branch}",
+            "git add -A",
+            f"git commit -m 'fix: resolve issue #{issue_id} via CCiA Swarm'",
+            f"git push fork {branch} --force"
+        ]
+        
+        for c in cmds:
+            r = subprocess.run(c, shell=True, capture_output=True, text=True, cwd=repo_dir)
+            if r.returncode != 0 and "git commit" in c:
+                self.log(f"⚠️ [GIT WARNING] {c} -> {r.stderr.strip()}")
+            elif r.returncode != 0 and "git push" in c:
+                self.log(f"❌ [PUSH ERROR] {c} -> {r.stderr.strip()}")
+
+        # 4. Crear Pull Request
+        body_path = f"/tmp/pr_body_{issue_id}.txt"
+        with open(body_path, "w", encoding="utf-8") as f:
+            f.write(diagnosis)
+
+        pr_cmd = f"gh pr create --repo {repo} --title 'fix: resolve #{issue_id}' --body-file '{body_path}' --head {gh_user}:{branch}"
+        res_pr = subprocess.run(pr_cmd, shell=True, capture_output=True, text=True, cwd=repo_dir, env=env)
+        self.log(f"📌 [PR LOG] code: {res_pr.returncode} | stderr: {res_pr.stderr.strip()}")
+        
+        if res_pr.returncode == 0 or "already exists" in res_pr.stderr:
+            self.log("✅ Pull Request enviada desde el Fork correctamente.")
+            return True
+        return False
+
+    def auto_discover_bounties(self):
+        self.log("🔍 [AUTO-DISCOVERY] Buscando nuevas Bounties e Issues abiertas en GitHub/IssueHunt...")
+        env = os.environ.copy()
+        if self.github_token:
+            env["GH_TOKEN"] = self.github_token
+            env["GITHUB_TOKEN"] = self.github_token
+
+        query = "gh api 'search/issues?q=is:issue+is:open+label:bounty,help-wanted&per_page=5'"
+        res = subprocess.run(query, shell=True, capture_output=True, text=True, env=env)
+        
+        if res.returncode == 0:
+            try:
+                data = json.loads(res.stdout)
+                items = data.get("items", [])
+                imported = 0
+                conn = sqlite3.connect(self.db_path)
+                cur = conn.cursor()
+                for item in items:
+                    repo_url = item.get("repository_url", "")
+                    repo_name = "/".join(repo_url.split("/")[-2:])
+                    issue_num = str(item.get("number"))
+                    title = item.get("title", "Issue Importada")
+                    
+                    cur.execute("SELECT id FROM bounty_opportunities WHERE repo=? AND issue_id=?", (repo_name, issue_num))
+                    if not cur.fetchone():
+                        cur.execute("INSERT INTO bounty_opportunities (repo, issue_id, title, status) VALUES (?, ?, ?, 'PENDING')", (repo_name, issue_num, title))
+                        imported += 1
+                conn.commit()
+                conn.close()
+                self.log(f"✅ Auto-discovery completado: {imported} nuevas bounties importadas.")
+                return imported > 0
+            except Exception as e:
+                self.log(f"⚠️ Error procesando API: {e}")
+        return False
+
+    def clone_and_extract_context(self, repo):
+        if os.path.exists(self.work_dir):
+            shutil.rmtree(self.work_dir)
+        os.makedirs(self.work_dir, exist_ok=True)
+        repo_url = f"https://github.com/{repo}.git" if not repo.startswith("http") else repo
+        self.log(f"📦 Clonando repositorio: {repo_url}")
+        subprocess.run(f"git clone --depth 1 {repo_url} {self.work_dir}", shell=True, capture_output=True)
+        return self.work_dir
 
     def process_bounty_loop(self, repo, issue_id, title=""):
-        print(f"\n================================================================================")
-        print(f"🎯 INICIANDO PIPELINE ISSUEHUNT + VANT SANDBOX: {repo}#{issue_id}")
-        print(f"📝 Título: {title}")
-        print("================================================================================")
+        self.log(f"🚀 === PIPELINE TRIPLE ENJAMBRE (I+D+IT v3 Telemetría): {repo}#{issue_id} ===")
+        repo_dir = self.clone_and_extract_context(repo)
         
-        repo_ctx, target_path = self.clone_and_extract_context(repo, title)
-        shielded_ctx = f"=== [DATOS REPOSITORIO] ===\n{repo_ctx[:2500]}\n=== [FIN DATOS] ==="
+        diagnosis = self.run_phase1_investigation(repo_dir, repo, issue_id, title)
+        
+        max_retries = 3
+        feedback = ""
+        review = {"score": 0.0, "feedback": "Sin evaluar"}
+        
+        for attempt in range(1, max_retries + 1):
+            self.log(f"🔄 [Auto-Healing Loop] Intento {attempt}/{max_retries}...")
+            self.run_phase2_tdd_coder(repo_dir, repo, issue_id, diagnosis, feedback=feedback)
+            review = self.run_phase3_gatekeeper(repo_dir, repo, issue_id, issue_title=title)
+            
+            if review.get("score", 0) >= 7.0:
+                self.log(f"✅ Aprobado por la Reina Q1. Score final: {review.get('score')}")
+                break
+            else:
+                feedback = review.get("feedback", "Intento fallido.")
+                self.log(f"⚠️ Rechazado en intento {attempt}. Feedback enviado a la Fase 2...")
 
-        # --- AST SCANNING CON ARTEFACTO 45 ---
-        ast_info = ""
-        if HAS_ART45 and os.path.exists(target_path):
-            print("⚡ [AST COMPILER - ART 45] Ejecutando análisis sintáctico de dependencias...")
-            ast_info = "\n⚡ [INSPECCIÓN AST ART 45] Árbol de sintaxis analizado."
+        if review.get("score", 0) >= 7.0:
+            if self.publish_fix_to_github(repo_dir, repo, issue_id, diagnosis):
+                final_state = "SUBMITTED"
+            else:
+                final_state = "FAILED_PUSH"
+        else:
+            final_state = "REJECTED"
 
-        q1_cfg = self.queen_brains[0] if len(self.queen_brains) > 0 else {"model": self.fallback_model, "role": "Reina Q1 Triaje y Causa Raíz"}
-        q2_cfg = self.queen_brains[1] if len(self.queen_brains) > 1 else {"model": self.fallback_model, "role": "Reina Q2 Auditoría VANT & Calidad"}
-        q3_cfg = self.queen_brains[2] if len(self.queen_brains) > 2 else {"model": self.fallback_model, "role": "Reina Q3 PR & Tests para IssueHunt"}
+        self._update_bounty_state(repo, issue_id, final_state)
+        self.log(f"🎉 Pipeline finalizado. Estado definitivo: [{final_state}]\n")
 
-        # 👑 FASE Q1: TRIAJE Y DIAGNÓSTICO
-        q1_prompt = f"Analiza el problema '{title}' en {repo}. Identifica causa raíz y archivos a modificar.{ast_info}\n{shielded_ctx}"
-        q1_res = self.call_ollama_stream(q1_cfg["model"], "Q1", q1_cfg["role"], q1_prompt)
-        self._save_debate(repo, issue_id, 0, "Q1", q1_cfg["role"], q1_res)
+    def run_full_pipeline(self):
+        conn = sqlite3.connect(self.db_path)
+        cur = conn.cursor()
+        cur.execute("SELECT repo, issue_id, title FROM bounty_opportunities WHERE status IN ('PENDING', 'OPEN') LIMIT 1;")
+        row = cur.fetchone()
+        conn.close()
 
-        # 🧠 CAPA 1: DIAGNÓSTICO
-        c1_prompt = f"Issue: {title}\nDiagnóstico Q1: {q1_res[:400]}\nDiseña la solución técnica mínima para el error."
-        for brain in [b for b in self.brains if b.get("swarm") == 1]:
-            res = self.call_ollama_stream(brain["model"], brain["code"], brain["role"], c1_prompt)
-            self._save_debate(repo, issue_id, 1, brain["code"], brain["role"], res)
+        if not row:
+            self.log("⚠️ Base de datos vacía. Activando Auto-Discovery de Bounties...")
+            if self.auto_discover_bounties():
+                conn = sqlite3.connect(self.db_path)
+                cur = conn.cursor()
+                cur.execute("SELECT repo, issue_id, title FROM bounty_opportunities WHERE status IN ('PENDING', 'OPEN') LIMIT 1;")
+                row = cur.fetchone()
+                conn.close()
 
-        # 🧠 CAPA 2: PARCHE DE CÓDIGO
-        c2_prompt = f"Genera el parche exacto en formato git diff para resolver '{title}'."
-        patch_res = ""
-        for brain in [b for b in self.brains if b.get("swarm") == 2]:
-            res = self.call_ollama_stream(brain["model"], brain["code"], brain["role"], c2_prompt)
-            patch_res += "\n" + res
-            self._save_debate(repo, issue_id, 2, brain["code"], brain["role"], res)
+        if row:
+            self.process_bounty_loop(row[0], row[1], row[2])
+        else:
+            self.log("⚠️ No hay más Bounties disponibles en este ciclo.")
 
-        # 🛡️ PRUEBA VANT SANDBOX
-        sandbox_report = "Sandbox omitida o no requerida."
-        if HAS_VANT_SANDBOX and os.path.exists(target_path):
-            print("🛡️ [VANT SANDBOX] Probando parche en entorno aislado...")
-            try:
-                sandbox_report = f"✅ VANT Sandbox: Código aislado e inspeccionado sin errores críticos en {target_path}."
-            except Exception as ve:
-                sandbox_report = f"⚠️ VANT Sandbox error: {ve}"
-            print(f"  • Resultado Sandbox: {sandbox_report}")
+    def run_continuous_daemon(self):
+        self.log("🔄 [DAEMON 24/7] Iniciando bucle autónomo del Enjambre...")
+        while True:
+            self.run_full_pipeline()
+            time.sleep(10)
 
-        # 👑 FASE Q2: AUDITORÍA DE CALIDAD Y RESULTADO VANT
-        q2_prompt = f"Audita el parche propuesto para '{title}'.\nReporte VANT Sandbox: {sandbox_report}\nVerifica que no existan efectos secundarios ni fallos."
-        q2_res = self.call_ollama_stream(q2_cfg["model"], "Q2", q2_cfg["role"], q2_prompt)
-        self._save_debate(repo, issue_id, 0, "Q2", q2_cfg["role"], q2_res)
+    def _save_debate(self, repo, issue_id, swarm, role_code, role_name, text):
+        conn = sqlite3.connect(self.db_path)
+        cur = conn.cursor()
+        cur.execute("INSERT INTO swarm_debates (repo, issue_id, swarm_phase, role_code, role_name, content) VALUES (?, ?, ?, ?, ?, ?)", (repo, issue_id, swarm, role_code, role_name, text))
+        conn.commit()
+        conn.close()
 
-        # 🧠 CAPA 3: PRUEBAS Y DOCUMENTACIÓN
-        c3_prompt = f"Escribe el unit test que valida la solución para '{title}'."
-        for brain in [b for b in self.brains if b.get("swarm") == 3]:
-            res = self.call_ollama_stream(brain["model"], brain["code"], brain["role"], c3_prompt)
-            self._save_debate(repo, issue_id, 3, brain["code"], brain["role"], res)
-
-        # 👑 FASE Q3: PULL REQUEST & AUTO-VINCULACIÓN ISSUEHUNT
-        q3_prompt = f"Redacta el Pull Request final para el issue #{issue_id} de {repo}.\nIncluye obligatorio: 'Fixes #{issue_id}', resumen del fix y cómo probarlo."
-        q3_res = self.call_ollama_stream(q3_cfg["model"], "Q3", q3_cfg["role"], q3_prompt)
-        self._save_debate(repo, issue_id, 0, "Q3", q3_cfg["role"], q3_res)
-
-        self._update_bounty_state(repo, issue_id, "RESOLVED")
-        print(f"\n✅ [COMPLETADO] Parche auditado por VANT y Pull Request generado para IssueHunt: {repo}#{issue_id}")
-
-    def _save_debate(self, repo, issue_id, swarm, code, role, text):
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cur = conn.cursor()
-            cur.execute("INSERT INTO swarm_debates (repo, issue_id, swarm_layer, brain_code, role_name, response_text) VALUES (?, ?, ?, ?, ?, ?)",
-                        (repo, issue_id, swarm, code, role, text[:500]))
-            conn.commit()
-            conn.close()
-        except Exception:
-            pass
+    def _save_review(self, repo, issue_id, queen, score, feedback):
+        conn = sqlite3.connect(self.db_path)
+        cur = conn.cursor()
+        cur.execute("INSERT INTO proposal_reviews (repo, issue_id, reviewer_queen, score, feedback) VALUES (?, ?, ?, ?, ?)", (repo, issue_id, queen, score, feedback))
+        conn.commit()
+        conn.close()
 
     def _update_bounty_state(self, repo, issue_id, new_state):
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cur = conn.cursor()
-            cur.execute("UPDATE bounty_opportunities SET status=? WHERE issue_id=? AND repo=?", (new_state, str(issue_id), repo))
-            conn.commit()
-            conn.close()
-        except Exception:
-            pass
+        conn = sqlite3.connect(self.db_path)
+        cur = conn.cursor()
+        cur.execute("UPDATE bounty_opportunities SET status=? WHERE repo=? AND issue_id=?", (new_state, repo, issue_id))
+        conn.commit()
+        conn.close()

@@ -3,15 +3,48 @@ import sys
 import json
 import sqlite3
 import subprocess
-import signal
 import time
 import re
 import urllib.request
+import fcntl
 
 sys.path.append("/home/k1/ccia_workspace")
 from modules.art_63 import TriSwarmOrchestrator
 
 orch = TriSwarmOrchestrator()
+WALLETS_PATH = "/home/k1/ccia_workspace/wallets.json"
+
+
+def get_installed_ollama_models():
+    try:
+        req = urllib.request.Request("http://localhost:11434/api/tags")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            return [m['name'] for m in data.get('models', [])]
+    except Exception:
+        res = subprocess.run("ollama list", shell=True, capture_output=True, text=True)
+        lines = res.stdout.strip().split('\n')
+        models = []
+        for line in lines[1:]:
+            parts = line.split()
+            if parts:
+                models.append(parts[0])
+        return models or ["ccia-reina-r1coder-14b:latest", "ccia-coder-xl-14b:latest"]
+
+
+def load_json_file(filepath, default):
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return default
+
+
+def save_json_file(filepath, data):
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
 
 
 def handle_option_4_bounties():
@@ -60,9 +93,9 @@ def handle_option_4_bounties():
                 c = conn.cursor()
                 issue_id = url.rstrip("/").split("/")[-1] if "/issues/" in url or "/pull/" in url else None
                 c.execute(
-                    "INSERT INTO bounty_opportunities (issue_url, repo, title, status, issue_id) "
-                    "VALUES (?, 'Manual', ?, 'PENDING', ?)",
-                    (url, title, issue_id)
+                    "INSERT INTO bounty_opportunities (repo, issue_id, title, status) "
+                    "VALUES ('Manual', ?, ?, 'PENDING')",
+                    (issue_id, title)
                 )
                 conn.commit()
                 conn.close()
@@ -74,70 +107,33 @@ def handle_option_4_bounties():
 
 def execute_daemon_toggle_art63():
     pid_file = '/tmp/art63_daemon.pid'
-    log_file = '/tmp/art63_reasoning.log'
-    
-    # Detener forzosamente cualquier instancia previa
-    subprocess.run(['pkill', '-9', '-f', 'art_63.py'], stderr=subprocess.DEVNULL)
-    time.sleep(1)
-    
-    if os.path.exists(pid_file):
-        try:
-            os.remove(pid_file)
-        except Exception:
-            pass
+    res = subprocess.run("pgrep -f 'run_continuous_daemon'", shell=True, capture_output=True, text=True)
+    if res.stdout.strip() or os.path.exists(pid_file):
+        subprocess.run("pkill -f 'run_continuous_daemon'", shell=True)
+        if os.path.exists(pid_file):
+            try:
+                os.remove(pid_file)
+            except Exception:
+                pass
         print('\n🛑 DEMONIO ARTEFACTO 63 DETENIDO LIMPIAMENTE.')
     else:
         print('\n🟢 INICIANDO INSTANCIA ÚNICA DEL DEMONIO ARTEFACTO 63...')
-        with open(log_file, 'w', encoding='utf-8') as f_log:
-            f_log.write('=== LOG INICIADO (INSTANCIA ÚNICA) ===\n')
-        
-        art63_script = '/home/k1/ccia_workspace/modules/art_63.py'
-        log_fd = open(log_file, 'a', encoding='utf-8')
-        proc = subprocess.Popen(
-            [sys.executable, '-u', art63_script, '--daemon'],
-            stdout=log_fd,
-            stderr=log_fd,
-            start_new_session=True,
-            close_fds=True
-        )
-        with open(pid_file, 'w') as pf:
-            pf.write(str(proc.pid))
-        print(f'✅ Demonio iniciado correctamente con PID único {proc.pid}.')
-
-
-def fetch_bounty_context(repo_issue: str) -> str:
-    """Obtiene el contenido real del issue de GitHub para inyectarlo a la Reina"""
-    try:
-        if "#" in repo_issue:
-            repo, issue_num = repo_issue.split("#")
-            url = f"https://api.github.com/repos/{repo}/issues/{issue_num}"
-            req = urllib.request.Request(url, headers={'User-Agent': 'CCIA-Swarm'})
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                data = json.loads(resp.read().decode('utf-8'))
-                title = data.get('title', '')
-                body = data.get('body', '')
-                return f"TÍTULO DEL ISSUE: {title}\nCUERPO DEL ISSUE:\n{body}"
-    except Exception as e:
-        return f"Contexto local del issue: {repo_issue} (No se pudo conectar a GitHub API: {e})"
-    return f"Contexto de la tarea: {repo_issue}"
-
-
-def clean_r1_output(text: str) -> str:
-    """Elimina el bloque de pensamiento de DeepSeek-R1 y deja solo la respuesta de gobernanza."""
-    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
-    return cleaned.strip()
+        cmd = "cd /home/k1/ccia_workspace && nohup python3 -c 'from modules.art_63 import TriSwarmOrchestrator; TriSwarmOrchestrator().run_continuous_daemon()' > /tmp/art63_daemon.log 2>&1 & echo $! > /tmp/art63_daemon.pid"
+        subprocess.run(cmd, shell=True)
+        time.sleep(1)
+        print('✅ Demonio iniciado correctamente en segundo plano.')
 
 
 def print_header():
     os.system("clear" if os.name == "posix" else "cls")
-    daemon_status = "🟢 ACTIVO" if os.path.exists("/tmp/art63_daemon.pid") else "🔴 INACTIVO"
+    daemon_running = subprocess.run("pgrep -f 'run_continuous_daemon'", shell=True, capture_output=True, text=True).stdout.strip()
+    daemon_status = "🟢 ACTIVO" if daemon_running or os.path.exists("/tmp/art63_daemon.pid") else "🔴 INACTIVO"
     b247_status = "ENABLED" if os.path.exists("/tmp/art62_247.state") else "DISABLED"
     print("=" * 80)
     print("       CENTRO DE MANDO Y CONTROL: SUPER ENJAMBRE ARTEFACTO 63 & 62")
     print("=" * 80)
     print(f" Estado Bucle 24/7 Artefacto 62 : [{b247_status}]")
     print(f" Daemon Bucle 24/7 Artefacto 63 : [{daemon_status}]")
-    import fcntl
     mutex_status = "[LIBRE]"
     try:
         lock_f = open("/tmp/ccia_ollama_global.lock", "a+")
@@ -175,17 +171,19 @@ def show_mando_menu():
         if opt == "1":
             print("\n📋 MAPEO DE LOS 15 CEREBROS Y 3 REINAS:")
             print("─" * 70)
-            for b in orch.brains:
-                print(f"  • Enjambre {b.get('swarm')}: [Cerebro {b['code']}] {b['role']} --> {b['model']}")
+            swarm_data = load_json_file("/home/k1/ccia_workspace/swarm_brains_63.json", [])
+            queen_data = load_json_file("/home/k1/ccia_workspace/queen_brains_63.json", [])
+            for b in swarm_data:
+                print(f"  • Enjambre {b.get('swarm','?')}: [Cerebro {b.get('code','?')}] {b.get('role','?')} --> {b.get('model','?')}")
             print("─" * 70)
-            for q in orch.queen_brains:
-                print(f"  👑 [REINA {q['code']}] {q['role']} --> {q['model']}")
+            for q in queen_data:
+                print(f"  👑 [REINA {q.get('code','?')}] {q.get('role','?')} --> {q.get('model','?')}")
             input("\n[Presione ENTER para continuar...]")
 
         elif opt == "2":
             print("\n🧠 RECONFIGURACIÓN DE MODELOS OLLAMA:")
             print("Modelos instalados detectados:")
-            models = orch.available_models
+            models = get_installed_ollama_models()
             for idx, m in enumerate(models, 1):
                 print(f"  {idx}. {m}")
             print("\nSeleccione Cerebro a reconfigurar (ejemplo: 1.1, 2.3, Q1, o 'TODOS'):")
@@ -201,15 +199,21 @@ def show_mando_menu():
                 else:
                     print("⚠️ Selección no válida.")
                 if selected_model:
+                    swarm_data = load_json_file("/home/k1/ccia_workspace/swarm_brains_63.json", [])
+                    queen_data = load_json_file("/home/k1/ccia_workspace/queen_brains_63.json", [])
+                    
                     if target.upper() == "TODOS":
-                        for b in orch.brains: b["model"] = selected_model
-                        for q in orch.queen_brains: q["model"] = selected_model
+                        for b in swarm_data: b["model"] = selected_model
+                        for q in queen_data: q["model"] = selected_model
                     else:
-                        for b in orch.brains:
-                            if b["code"].upper() == target.upper(): b["model"] = selected_model
-                        for q in orch.queen_brains:
-                            if q["code"].upper() == target.upper(): q["model"] = selected_model
-                    orch.save_swarm_config()
+                        for b in swarm_data:
+                            if b.get("code", "").upper() == target.upper(): b["model"] = selected_model
+                        for q in queen_data:
+                            if q.get("code", "").upper() == target.upper(): q["model"] = selected_model
+                    
+                    save_json_file("/home/k1/ccia_workspace/swarm_brains_63.json", swarm_data)
+                    save_json_file("/home/k1/ccia_workspace/queen_brains_63.json", queen_data)
+                    orch.brains = orch._load_brains()
                     print(f"\n✅ Cerebro(s) [{target.upper()}] reconfigurado(s) exitosamente a: {selected_model}")
             input("\n[Presione ENTER para continuar...]")
 
@@ -223,16 +227,20 @@ def show_mando_menu():
 
         elif opt == "5":
             print("\n💳 CARTERAS MULTICADENA DE RECEPCIÓN CONFIGURADAS:")
-            for k, v in orch.wallets.items():
+            default_wallets = {
+                "lightning": "N/A", "evm": "N/A", "btc_segwit": "N/A",
+                "solana": "N/A", "monero": "N/A", "tron_usdt": "N/A"
+            }
+            wallets = load_json_file(WALLETS_PATH, default_wallets)
+            for k, v in wallets.items():
                 print(f"  • {k.upper():<12}: {v}")
             print("\n¿Desea editar alguna cartera? (s/n)")
             if input("> ").strip().lower() == "s":
                 k = input("Nombre de la moneda/red (lightning/evm/btc_segwit/solana/monero/tron_usdt) > ").strip().lower()
                 v = input("Nueva dirección > ").strip()
                 if k and v:
-                    orch.wallets[k] = v
-                    with open(orch.wallets_path, "w", encoding="utf-8") as f:
-                        json.dump(orch.wallets, f, indent=2)
+                    wallets[k] = v
+                    save_json_file(WALLETS_PATH, wallets)
                     print("✅ Dirección actualizada correctamente.")
             input("\n[Presione ENTER para continuar...]")
 
@@ -241,12 +249,12 @@ def show_mando_menu():
             try:
                 conn = sqlite3.connect(orch.db_path)
                 cur = conn.cursor()
-                cur.execute("SELECT repo, issue_id, swarm_layer, brain_code, role_name, timestamp FROM swarm_debates ORDER BY id DESC LIMIT 15;")
+                cur.execute("SELECT repo, issue_id, swarm_phase, role_code, role_name, timestamp FROM swarm_debates ORDER BY id DESC LIMIT 15;")
                 rows = cur.fetchall()
                 conn.close()
                 if rows:
                     for r in rows:
-                        print(f" [{r[5]}] Repo: {r[0]}#{r[1]} | Swarm {r[2]} | [{r[3]} - {r[4]}]")
+                        print(f" [{r[5]}] Repo: {r[0]}#{r[1]} | Fase: {r[2]} | [{r[3]} - {r[4]}]")
                 else:
                     print("  ℹ️ No hay debates registrados en la DB aún.")
             except Exception as e:
@@ -258,12 +266,12 @@ def show_mando_menu():
             try:
                 conn = sqlite3.connect(orch.db_path)
                 cur = conn.cursor()
-                cur.execute("SELECT repo, issue_id, reviewer_queen, score, status, timestamp FROM bounty_opportunities ORDER BY id DESC LIMIT 10;")
+                cur.execute("SELECT repo, issue_id, reviewer_queen, score, feedback, timestamp FROM proposal_reviews ORDER BY id DESC LIMIT 10;")
                 rows = cur.fetchall()
                 conn.close()
                 if rows:
                     for r in rows:
-                        print(f" [{r[5]}] Repo: {r[0]}#{r[1]} | Reina: {r[2]} | Puntuación: {r[3]} | Estado: {r[4]}")
+                        print(f" [{r[5]}] Repo: {r[0]}#{r[1]} | Reina: {r[2]} | Score: {r[3]} | Feedback: {r[4]}")
                 else:
                     print("  ℹ️ No hay revisiones registradas en la DB aún.")
             except Exception as e:
@@ -285,7 +293,8 @@ def show_mando_menu():
 
         elif opt == "9":
             print("\n📊 ESTADO DE TABLAS DB Y OLLAMA:")
-            print(f"  • Modelos instalados en Ollama: {len(orch.available_models)}")
+            models = get_installed_ollama_models()
+            print(f"  • Modelos instalados en Ollama: {len(models)}")
             try:
                 conn = sqlite3.connect(orch.db_path)
                 cur = conn.cursor()
@@ -348,8 +357,9 @@ def show_mando_menu():
 
         elif opt == "13":
             print("\n👑 GOBERNANZA DE REINAS (Q1, Q2, Q3):")
-            for q in orch.queen_brains:
-                print(f"  • [REINA {q['code']}] {q['role']} --> Modelo: {q['model']}")
+            queen_data = load_json_file("/home/k1/ccia_workspace/queen_brains_63.json", [])
+            for q in queen_data:
+                print(f"  • [REINA {q.get('code','?')}] {q.get('role','?')} --> Modelo: {q.get('model','?')}")
             input("\n[Presione ENTER para continuar...]")
 
         elif opt == "0":

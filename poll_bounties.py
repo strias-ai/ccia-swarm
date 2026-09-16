@@ -16,13 +16,13 @@ def check_github_pr(repo, pr_number=1):
 
 conn = sqlite3.connect(DB_PATH)
 cursor = conn.cursor()
-cursor.execute("SELECT repo_name FROM bounties WHERE status='PR_SUBMITTED'")
+cursor.execute("SELECT repo FROM bounty_opportunities WHERE status='PR_SUBMITTED'")
 repos = cursor.fetchall()
 
 for (repo,) in repos:
     new_status = check_github_pr(repo)
     if new_status == "CLAIMED":
-        cursor.execute("UPDATE bounties SET status='CLAIMED' WHERE repo_name=?", (repo,))
+        cursor.execute("UPDATE bounties SET status='CLAIMED' WHERE repo=?", (repo,))
         print(f"🟢 Bounty en {repo} cobrado exitosamente.")
 
 conn.commit()

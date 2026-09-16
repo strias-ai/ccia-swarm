@@ -34,7 +34,7 @@ def menu_agentes():
     cursor = conn.cursor()
     
     print(f"{C_YELLOW}[1.1] Bounties y PRs Capturadas:{C_RESET}")
-    cursor.execute("SELECT repo_name, bounty_amount, status, created_at FROM bounties ORDER BY id DESC LIMIT 10")
+    cursor.execute("SELECT repo, bounty_amount, status, created_at FROM bounty_opportunities ORDER BY id DESC LIMIT 10")
     bounties = cursor.fetchall()
     if bounties:
         for repo, amount, status, date in bounties:
@@ -43,7 +43,7 @@ def menu_agentes():
         print("  • Sin registros recientes de bounties.")
         
     print(f"\n{C_YELLOW}[1.2] Repositorios Catalogados en el Sector:{C_RESET}")
-    cursor.execute("SELECT count(*) FROM bounties")
+    cursor.execute("SELECT count(*) FROM bounty_opportunities")
     discovered = cursor.fetchone()[0]
     print(f"  • Total de galaxias de código escaneadas: {C_BOLD}{discovered}{C_RESET}")
     conn.close()
@@ -70,7 +70,7 @@ def menu_finanzas():
     
     cursor.execute("SELECT COALESCE(SUM(amount), 0) / 100.0 FROM processed_stripe_events")
     captured_total = cursor.fetchone()[0]
-    cursor.execute("SELECT COALESCE(SUM(bounty_amount), 0.0) FROM bounties WHERE status IN ('PR_SUBMITTED', 'CLAIMED', 'HELD_IN_ESCROW')")
+    cursor.execute("SELECT COALESCE(SUM(bounty_amount), 0.0) FROM bounty_opportunities WHERE status IN ('PR_SUBMITTED', 'CLAIMED', 'HELD_IN_ESCROW')")
     bounties_total = cursor.fetchone()[0]
     total = captured_total + bounties_total
     

@@ -2,91 +2,91 @@
   {
     "code": "1.1",
     "role": "Archi-Investigador",
-    "icon": "🔍",
+    "icon": "\ud83d\udd0d",
     "model": "ccia-reina-r1coder-14b:latest"
   },
   {
     "code": "1.2",
-    "role": "Archi-Diseñador",
-    "icon": "📐",
+    "role": "Archi-Dise\u00f1ador",
+    "icon": "\ud83d\udcd0",
     "model": "ccia-reina-r1coder-14b:latest"
   },
   {
     "code": "1.3",
     "role": "Especialista Backend",
-    "icon": "⚙️",
+    "icon": "\u2699\ufe0f",
     "model": "ccia-coder-xl-14b:latest"
   },
   {
     "code": "1.4",
     "role": "Especialista Frontend",
-    "icon": "🎨",
+    "icon": "\ud83c\udfa8",
     "model": "ccia-coder-xl-14b:latest"
   },
   {
     "code": "1.5",
     "role": "Auditor Seguridad",
-    "icon": "🛡️",
+    "icon": "\ud83d\udee1\ufe0f",
     "model": "ccia-reina-r1coder-14b:latest"
   },
   {
     "code": "2.1",
-    "role": "Critico Código",
-    "icon": "🧪",
+    "role": "Critico C\u00f3digo",
+    "icon": "\ud83e\uddea",
     "model": "codestral:latest"
   },
   {
     "code": "2.2",
     "role": "Optimizador Rendimiento",
-    "icon": "⚡",
+    "icon": "\u26a1",
     "model": "deepscaler:latest"
   },
   {
     "code": "2.3",
     "role": "Ingeniero Pruebas",
-    "icon": "🎯",
+    "icon": "\ud83c\udfaf",
     "model": "ccia-coder-xl-14b:latest"
   },
   {
     "code": "2.4",
     "role": "Redactor Docs",
-    "icon": "📝",
+    "icon": "\ud83d\udcdd",
     "model": "mistral-nemo:12b"
   },
   {
     "code": "2.5",
     "role": "Integrador API",
-    "icon": "🔌",
+    "icon": "\ud83d\udd0c",
     "model": "ccia-coder-xl-14b:latest"
   },
   {
     "code": "3.1",
     "role": "Arbitro Calidad",
-    "icon": "⚖️",
+    "icon": "\u2696\ufe0f",
     "model": "ccia-reina-r1coder-14b:latest"
   },
   {
     "code": "3.2",
     "role": "Estratega Bounties",
-    "icon": "💰",
+    "icon": "\ud83d\udcb0",
     "model": "ccia-reina-r1coder-14b:latest"
   },
   {
     "code": "3.3",
     "role": "Especialista DB",
-    "icon": "🗄️",
+    "icon": "\ud83d\uddc4\ufe0f",
     "model": "qwen2.5-coder:14b"
   },
   {
     "code": "3.4",
     "role": "Gestor Despliegue",
-    "icon": "🚀",
+    "icon": "\ud83d\ude80",
     "model": "ccia-coder-xl-14b:latest"
   },
   {
     "code": "3.5",
     "role": "Reina Mando",
-    "icon": "👑",
+    "icon": "\ud83d\udc51",
     "model": "ccia-reina-r1coder-14b:latest"
   }
 ]

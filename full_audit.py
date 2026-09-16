@@ -26,7 +26,7 @@ for art_id, name, script_path in artifacts:
 print(f"\n Total Artefactos: {len(artifacts)} | Deuda Técnica (Faltantes): {missing_files}\n")
 
 # 2. Métricas y Registros de la Base de Datos
-cursor.execute("SELECT count(*) FROM bounties")
+cursor.execute("SELECT count(*) FROM bounty_opportunities")
 bounties_count = cursor.fetchone()[0]
 cursor.execute("SELECT count(*) FROM ccia_artifact_manifests")
 manifests_count = cursor.fetchone()[0]

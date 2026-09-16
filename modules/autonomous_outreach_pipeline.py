@@ -92,7 +92,7 @@ def execute_pipeline():
         title_col = "title" if "title" in bounty_cols else ("name" if "name" in bounty_cols else bounty_cols[1] if len(bounty_cols) > 1 else bounty_cols[0])
         url_col = "target_url" if "target_url" in bounty_cols else ("url" if "url" in bounty_cols else bounty_cols[0])
         
-        query = f"SELECT {title_col}, {url_col} FROM bounties LIMIT 50;"
+        query = f"SELECT {title_col}, {url_col} FROM bounty_opportunities LIMIT 50;"
         cur.execute(query)
         rows = cur.fetchall()
         for title_val, url_val in rows:

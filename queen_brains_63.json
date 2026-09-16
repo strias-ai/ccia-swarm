@@ -2,19 +2,19 @@
   {
     "code": "Q1",
     "role": "Reina Gobernanza & Estrategia",
-    "icon": "👑",
+    "icon": "\ud83d\udc51",
     "model": "ccia-reina-r1coder-14b:latest"
   },
   {
     "code": "Q2",
     "role": "Reina Calidad & Seguridad",
-    "icon": "🛡️",
+    "icon": "\ud83d\udee1\ufe0f",
     "model": "ccia-coder-xl-14b:latest"
   },
   {
     "code": "Q3",
     "role": "Reina Finanzas & Bounties",
-    "icon": "💎",
-    "model": "mistral-nemo:12b"
+    "icon": "\ud83d\udc8e",
+    "model": "huihui_ai/deepseek-r1-abliterated:14b"
   }
 ]
