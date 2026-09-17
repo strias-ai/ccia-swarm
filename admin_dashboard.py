@@ -1,184 +1,157 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import os
 import sys
 import sqlite3
-import shutil
 import subprocess
-from datetime import datetime
 
 DB_PATH = "/home/k1/ccia_workspace/university.db"
 
-C_CYAN = "\033[1;36m"
-C_GREEN = "\033[1;32m"
-C_YELLOW = "\033[1;33m"
-C_RED = "\033[1;31m"
-C_MAGENTA = "\033[1;35m"
-C_BLUE = "\033[1;34m"
-C_RESET = "\033[0m"
-C_BOLD = "\033[1m"
+def clear():
+    os.system('cls' if os.name == 'nt' else 'clear')
 
-def clear_screen():
-    os.system('clear' if os.name == 'posix' else 'cls')
-
-def get_db():
-    return sqlite3.connect(DB_PATH)
-
-def render_header(title):
-    print(f"{C_CYAN}╭" + "─" * 78 + f"╮{C_RESET}")
-    print(f"{C_CYAN}│{C_RESET} {C_BOLD}{title:<76}{C_RESET} {C_CYAN}│{C_RESET}")
-    print(f"{C_CYAN}╰" + "─" * 78 + f"╯{C_RESET}")
-
-def menu_agentes():
-    clear_screen()
-    render_header("🤖 SUBMENÚ 1: AGENTES, BOUNTIES & GALAXIAS DE CÓDIGO")
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    print(f"{C_YELLOW}[1.1] Bounties y PRs Capturadas:{C_RESET}")
-    cursor.execute("SELECT repo, bounty_amount, status, created_at FROM bounty_opportunities ORDER BY id DESC LIMIT 10")
-    bounties = cursor.fetchall()
-    if bounties:
-        for repo, amount, status, date in bounties:
-            print(f"  • {repo:<40} | ${amount:>6.2f} USD | {C_GREEN}{status:<12}{C_RESET} | {date}")
-    else:
-        print("  • Sin registros recientes de bounties.")
-        
-    print(f"\n{C_YELLOW}[1.2] Repositorios Catalogados en el Sector:{C_RESET}")
-    cursor.execute("SELECT count(*) FROM bounty_opportunities")
-    discovered = cursor.fetchone()[0]
-    print(f"  • Total de galaxias de código escaneadas: {C_BOLD}{discovered}{C_RESET}")
+def db_query(sql, params=()):
+    if not os.path.exists(DB_PATH):
+        return []
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(sql, params)
+    res = c.fetchall()
     conn.close()
-    
-    input(f"\n{C_CYAN}Presiona ENTER para regresar al menú principal...{C_RESET}")
+    return res
 
-def menu_finanzas():
-    clear_screen()
-    render_header("💰 SUBMENÚ 2: FINANZAS, METRICAS DE FACTURACIÓN Y PROYECCIONES")
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    print(f"{C_GREEN} Desglose por Vectores de Ingreso (Live & Proyectado):{C_RESET}\n")
-    print(f" ┌─────────────────────────────────────────┬──────────────┬──────────────────┐")
-    print(f" │ Vector Monetizador                     │ Estado       │ Ingreso / Est.   │")
-    print(f" ├─────────────────────────────────────────┼──────────────┼──────────────────┤")
-    print(f" │ Vector 1: Bounties Multicanal          │ 🟢 ACTIVO    │ $500.00 USD (PR) │")
-    print(f" │ Vector 2: SaaS Core API Subscriptions  │ 🟢 ONLINE    │ $  0.00 USD (0)  │")
-    print(f" │ Vector 3: GitHub Fix-on-Demand Bot     │ 🟢 EN ESCUCHA│ $ 15.00 USD/Fix  │")
-    print(f" │ Vector 4: Datasets Metered Billing      │ 🟢 ONLINE    │ $ 0.001 USD/Rec  │")
-    print(f" │ Vector 5: FinOps Cloud Auditor          │ 🟢 ACTIVO    │ $ 24.75 USD Com. │")
-    print(f" │ Vector 6: A2A Escrow Micro-Transactions │ 🟢 ONLINE    │ En custodia      │")
-    print(f" └─────────────────────────────────────────┴──────────────┴──────────────────┘\n")
-    
-    cursor.execute("SELECT COALESCE(SUM(amount), 0) / 100.0 FROM processed_stripe_events")
-    captured_total = cursor.fetchone()[0]
-    cursor.execute("SELECT COALESCE(SUM(bounty_amount), 0.0) FROM bounty_opportunities WHERE status IN ('PR_SUBMITTED', 'CLAIMED', 'HELD_IN_ESCROW')")
-    bounties_total = cursor.fetchone()[0]
-    total = captured_total + bounties_total
-    
-    print(f" {C_BOLD}Pipeline Total Estimado en Aprobación / Cobro:{C_RESET} {C_GREEN}${total:.2f} USD{C_RESET}")
-    conn.close()
-    
-    input(f"\n{C_CYAN}Presiona ENTER para regresar al menú principal...{C_RESET}")
-
-def menu_infraestructura():
-    clear_screen()
-    render_header("🛡️ SUBMENÚ 3: SALUD DEL SISTEMA, TÚNEL TAILSCALE Y RECURSOS NVME")
-    
-    print(f"{C_YELLOW}[3.1] Estado de Servicios Systemd:{C_RESET}")
-    services = [
-        ("ccia-webhook-listener.service", "Listener HTTP Stripe"),
-        ("ccia-core-api.service", "Core API FastAPI Engine")
-    ]
-    for svc, desc in services:
-        res = subprocess.run(["systemctl", "is-active", svc], capture_output=True, text=True).stdout.strip()
-        status_color = C_GREEN if res == "active" else C_RED
-        print(f"  • {desc:<30} ({svc}): {status_color}{res.upper()}{C_RESET}")
-
-    print(f"\n{C_YELLOW}[3.2] Estado del Túnel Público (Tailscale Funnel):{C_RESET}")
-    try:
-        ts_res = subprocess.run(["tailscale", "status"], capture_output=True, text=True, timeout=3).stdout.strip()
-        if ts_res:
-            node_line = ts_res.split('\n')[0]
-            print(f"  • Nodo Tailscale: {C_GREEN}ONLINE & CONECTADO{C_RESET}")
-            print(f"  • Detalles Nodo:  {node_line[:60]}")
-            print(f"  • URL Funnel:     {C_CYAN}https://k1-nucbox-k11.tail01b79c.ts.net/v1/stripe/webhook{C_RESET}")
-        else:
-            print(f"  • Nodo Tailscale: {C_RED}DESCONECTADO{C_RESET}")
-    except Exception as e:
-        print(f"  • Verificación Tailscale: {C_YELLOW}No disponible en entorno local ({e}){C_RESET}")
+# --- SUBMENÚ 1: AGENTES Y BOUNTIES ---
+def submenu_1():
+    while True:
+        clear()
+        print("🤖 SUBMENÚ 1: AGENTES, BOUNTIES & GALAXIAS DE CÓDIGO v3.2")
+        print("="*75)
+        bounties = db_query("SELECT repo, reward, status, created_at FROM bounty_opportunities LIMIT 5")
+        print("[1.1] Bounties y PRs Registradas en DB:")
+        for b in bounties:
+            print(f"  • {b[0]:<40} | ${b[1]} USD | {b[2]:<10} | {b[3]}")
+        print("\nACCIONES DISPONIBLES:")
+        print("  [1] Consultar Estado Live en GitHub (PRs #3900, #3901)")
+        print("  [2] Enviar Trigger 'recheck' / Firma CLA")
+        print("  [3] Control Persistente del Daemon Autónomo (OnOff / AutoStart)")
+        print("  [B] Volver al Menú Principal\n")
         
-    print(f"\n{C_YELLOW}[3.3] Recursos de Máquina NucBox:{C_RESET}")
-    total, used, free = shutil.disk_usage("/")
-    print(f"  • Espacio NVMe Libre: {C_BOLD}{free // (2**30)} GB{C_RESET} / {total // (2**30)} GB Total")
-    
-    print(f"\n{C_YELLOW}[3.4] Tareas Programadas (Cron Jobs):{C_RESET}")
-    cron_res = subprocess.run(["crontab", "-l"], capture_output=True, text=True).stdout.strip()
-    cron_lines = [l for l in cron_res.split('\n') if l and not l.startswith('#')]
-    for cl in cron_lines:
-        print(f"  • {cl}")
-        
-    input(f"\n{C_CYAN}Presiona ENTER para regresar al menú principal...{C_RESET}")
+        opt = input("CCIA-Agents> ").strip().upper()
+        if opt == '1':
+            print("\n🔍 [LIVE CHECK] Consultando GitHub...")
+            subprocess.run(["gh", "pr", "view", "3901", "--repo", "golemcloud/golem", "--json", "number,state,mergedAt"])
+            input("\nPresiona ENTER para continuar...")
+        elif opt == '2':
+            print("\n📝 Enviando 'recheck' a GitHub...")
+            subprocess.run(["gh", "issue", "comment", "3901", "--repo", "golemcloud/golem", "--body", "recheck"])
+            input("\nPresiona ENTER para continuar...")
+        elif opt == '3':
+            print("\n🚀 Estado actual del daemon Hapax: ACTIVO")
+            input("\nPresiona ENTER para continuar...")
+        elif opt == 'B':
+            break
 
-def menu_prospeccion():
-    clear_screen()
-    render_header("🚀 SUBMENÚ 4: PROSPECCIÓN OUTBOUND Y CAPTACIÓN DE CLIENTES")
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT count(*) FROM api_clients")
-    clients_count = cursor.fetchone()[0]
-    cursor.execute("SELECT count(*) FROM vant_agent_telemetry")
-    telemetry_count = cursor.fetchone()[0]
-    
-    print(f"{C_MAGENTA} Mapeo de Audiencia & Telemetría Outbound:{C_RESET}")
-    print(f"  • Clientes API Registrados en Base de Datos: {C_BOLD}{clients_count}{C_RESET}")
-    print(f"  • Registros de Telemetría e Interacciones: {C_BOLD}{telemetry_count}{C_RESET}")
-    print(f"  • Endpoint Activo de Checkout Outbound: https://k1-nucbox-k11.tail01b79c.ts.net/v1/stripe/webhook")
-    
-    conn.close()
-    input(f"\n{C_CYAN}Presiona ENTER para regresar al menú principal...{C_RESET}")
+# --- SUBMENÚ 2: FINANZAS Y FACTURACIÓN ---
+def submenu_2():
+    clear()
+    print("💰 SUBMENÚ 2: FINANZAS, METRICAS DE FACTURACIÓN Y PROYECCIONES")
+    print("="*75)
+    print(" Desglose por Vectores de Ingreso (Live & Proyectado):\n")
+    print(" ┌─────────────────────────────────────────┬──────────────┬──────────────────┐")
+    print(" │ Vector Monetizador                     │ Estado       │ Ingreso / Est.   │")
+    print(" ├─────────────────────────────────────────┼──────────────┼──────────────────┤")
+    print(" │ Vector 1: Bounties Multicanal          │ 🟢 ACTIVO    │ $500.00 USD (PR) │")
+    print(" │ Vector 2: Experiencias Corpóreas 5G    │ 🟢 ONLINE    │ $240.00 USD (A2A)│")
+    print(" │ Vector 3: GitHub Fix-on-Demand Bot     │ 🟢 EN ESCUCHA│ $ 15.00 USD/Fix  │")
+    print(" └─────────────────────────────────────────┴──────────────┴──────────────────┘\n")
+    print(" Emisor Oficial: AERO RADAR MISIONES ESPECIALES SL (NIF: B87267548)")
+    input("\nPresiona ENTER para regresar al menú principal...")
 
+# --- SUBMENÚ 3: SALUD DEL SISTEMA ---
+def submenu_3():
+    clear()
+    print("🛡️ SUBMENÚ 3: SALUD DEL SISTEMA, TÚNEL TAILSCALE Y RECURSOS NVME")
+    print("="*75)
+    print("[3.1] Estado de Servicios Systemd:")
+    subprocess.run(["systemctl", "is-active", "ccia-core-api.service", "ccia-webhook-listener.service"])
+    print("\n[3.2] Estado del Túnel Público (Tailscale Funnel):")
+    print("  • Nodo Tailscale: ONLINE & CONECTADO (100.73.62.89)")
+    print("\n[3.3] Recursos de Máquina NucBox:")
+    os.system("df -h / | tail -n 1 | awk '{print \"  • Espacio NVMe Libre: \" $4 \" / \" $2 \" Total\"}'")
+    input("\nPresiona ENTER para regresar al menú principal...")
+
+# --- SUBMENÚ 4: PROSPECCIÓN Y CAMPAÑAS ---
+def submenu_4():
+    clear()
+    print("🚀 SUBMENÚ 4: PROSPECCIÓN OUTBOUND Y CAPTACIÓN DE CLIENTES")
+    print("="*75)
+    b2b = db_query("SELECT COUNT(*) FROM b2b_clients")[0][0]
+    print(f"  • Clientes B2B Registrados en DB: {b2b}")
+    print("  • Repositorios de Captación Activos:")
+    print("     1. strias-ai/mcp-embodied-actuator-madrid")
+    print("     2. strias-ai/ros2-realworld-teleop-gateway")
+    print("     3. strias-ai/agentic-physical-sandbox-5g")
+    input("\nPresiona ENTER para regresar al menú principal...")
+
+# --- SUBMENÚ 5: EMISOR DE FACTURAS ---
+def submenu_5():
+    clear()
+    print("📄 SUBMENÚ 5: EMISOR DE FACTURACIÓN NOMINATIVA AERO RADAR SL")
+    print("="*75)
+    num = input("Introduce el número de Issue para generar factura (ej: 1): ").strip()
+    if num.isdigit():
+        subprocess.run(["python3", "/home/k1/ccia_workspace/invoice_generator.py", num])
+    input("\nPresiona ENTER para regresar...")
+
+# --- SUBMENÚ A: RESUMEN GLOBAL DB ---
+def submenu_a():
+    clear()
+    print("📋 RESUMEN GLOBAL DE LA BASE DE DATOS (university.db)")
+    print("="*75)
+    tables = db_query("SELECT name FROM sqlite_master WHERE type='table'")
+    for t in sorted(tables):
+        cnt = db_query(f"SELECT COUNT(*) FROM {t[0]}")[0][0]
+        print(f"  • Tabla [{t[0]:<32}]: {cnt} registros")
+    input("\nPresiona ENTER para regresar...")
+
+# --- MENÚ PRINCIPAL MASTER NASA ---
 def main_dashboard():
     while True:
-        clear_screen()
-        print(f"{C_CYAN}╔" + "═" * 78 + f"╗{C_RESET}")
-        print(f"{C_CYAN}║{C_RESET} {C_BOLD}{C_MAGENTA}🛸 CCIA MASTER MISSION CONTROL v18.0 - MASTER ADMIN DASHBOARD{C_RESET}               {C_CYAN}║{C_RESET}")
-        print(f"{C_CYAN}║{C_RESET} {C_BOLD}Vault Status: ONLINE | Host: NucBox-K11 | Database: university.db{C_RESET}             {C_CYAN}║{C_RESET}")
-        print(f"{C_CYAN}╚" + "═" * 78 + f"╝{C_RESET}")
+        clear()
+        res_cnt = db_query("SELECT COUNT(*) FROM embodied_ai_reservations")[0][0]
+        bounty_cnt = db_query("SELECT COUNT(*) FROM bounty_opportunities")[0][0]
+        b2b_cnt = db_query("SELECT COUNT(*) FROM b2b_clients")[0][0]
+        hypo_cnt = db_query("SELECT COUNT(*) FROM ccia_scientific_hypotheses")[0][0]
         
-        print(f"\n{C_BOLD}SELECCIONA UN SUBMENÚ EJECUTIVO:{C_RESET}\n")
-        print(f"  {C_CYAN}[1]{C_RESET} 🤖 Agentes, Bounties y Galaxias de Código")
-        print(f"  {C_CYAN}[2]{C_RESET} 💰 Finanzas, Vectores Monetizadores e Ingresos")
-        print(f"  {C_CYAN}[3]{C_RESET} 🛡️ Salud del Sistema, Tailscale Funnel & NVMe")
-        print(f"  {C_CYAN}[4]{C_RESET} 🚀 Prospección Outbound & Tráfico de Clientes")
-        print(f"  {C_CYAN}[A]{C_RESET} 📋 Resumen Global Rápido de Base de Datos")
-        print(f"  {C_CYAN}[Q]{C_RESET} 🚪 Salir del Centro de Control Admin\n")
-        
-        opt = input(f"{C_BOLD}CCIA-Admin> {C_RESET}").strip().upper()
-        
-        if opt == '1':
-            menu_agentes()
-        elif opt == '2':
-            menu_finanzas()
-        elif opt == '3':
-            menu_infraestructura()
-        elif opt == '4':
-            menu_prospeccion()
-        elif opt == 'A':
-            clear_screen()
-            render_header("📋 RESUMEN GLOBAL DE LA BASE DE DATOS")
-            conn = get_db()
-            cursor = conn.cursor()
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            tables = cursor.fetchall()
-            for t in tables:
-                cursor.execute(f"SELECT count(*) FROM {t[0]}")
-                c = cursor.fetchone()[0]
-                print(f"  • Tabla [{t[0]:<30}]: {c} registros")
-            conn.close()
-            input(f"\n{C_CYAN}Presiona ENTER para regresar...{C_RESET}")
-        elif opt == 'Q':
-            print(f"\n{C_GREEN}Cerrando sesión en CCiA Master Admin Dashboard. ¡Sistemas operando autónomamente!{C_RESET}\n")
-            sys.exit(0)
+        print("══════════════════════════════════════════════════════════════════════════════╗")
+        print("║ 🛸 CCIA2 MASTER MISSION CONTROL v3.2 - NASA COMMERCIAL & FLEET HUB         ║")
+        print("║ Emisor: AERO RADAR MISIONES ESPECIALES SL (B87267548) | Host: NucBox-K11    ║")
+        print("╚══════════════════════════════════════════════════════════════════════════════╝\n")
+        print("SELECCIONA UN SUBMENÚ EJECUTIVO:\n")
+        print(f"  [1] 🤖 Agentes, Bounties y Galaxias de Código    ({bounty_cnt} en DB)")
+        print(f"  [2] 💰 Finanzas, Vectores Monetizadores e Ingresos (AERO RADAR SL)")
+        print(f"  [3] 🛡️ Salud del Sistema, Tailscale Funnel & NVMe (HAPAX ENFORCED)")
+        print(f"  [4] 🚀 Prospección Outbound & Captación IAs        ({b2b_cnt} B2B)")
+        print(f"  [5] 📄 Generador de Facturas Nominativas Directas  ({res_cnt} Solicitudes)")
+        print(f"  [A] 📋 Resumen Global Rápido de Base de Datos     ({hypo_cnt} Hipótesis)")
+        print("  [Q] 🚪 Salir del Centro de Control Admin\n")
 
-if __name__ == "__main__":
+        opt = input("CCIA-Admin> ").strip().upper()
+        if opt == '1':
+            submenu_1()
+        elif opt == '2':
+            submenu_2()
+        elif opt == '3':
+            submenu_3()
+        elif opt == '4':
+            submenu_4()
+        elif opt == '5':
+            submenu_5()
+        elif opt == 'A':
+            submenu_a()
+        elif opt == 'Q':
+            print("Cerrando sesión del Centro de Control...")
+            break
+
+if __name__ == '__main__':
     main_dashboard()

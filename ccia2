@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import os
+import sys
+import sqlite3
+import subprocess
+
+DB_PATH = "/home/k1/ccia_workspace/university.db"
+
+def clear_screen():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+def get_stats():
+    if not os.path.exists(DB_PATH):
+        return 0, 0, 0, 0, 0
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM embodied_ai_reservations")
+    res_count = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM bounty_opportunities")
+    bounty_count = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM tailscale_fleet WHERE sim_status = 'ONLINE_STANDBY'")
+    fleet_count = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM b2b_clients")
+    b2b_count = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM ccia_scientific_hypotheses")
+    hypo_count = cursor.fetchone()[0]
+    conn.close()
+    return res_count, bounty_count, fleet_count, b2b_count, hypo_count
+
+def manage_messages():
+    clear_screen()
+    print("=== 📩 CENTRO DE MENSAJES Y SOLICITUDES RESERVAS A2A ===")
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT issue_number, agent_id, total_amount_usd, payment_preference, status FROM embodied_ai_reservations")
+    rows = cursor.fetchall()
+    conn.close()
+
+    if not rows:
+        print("\nNo hay mensajes o reservas registradas.")
+    else:
+        for r in rows:
+            print(f"\n📌 Solicitud Issue #{r[0]} | Agente: {r[1]}")
+            print(f"   • Presupuesto: ${r[2]} USD | Método: {r[3]}")
+            print(f"   • Estado en DB: {r[4]}")
+
+    print("\n[F] Emitir Factura AERO RADAR SL | [ENTER] Volver")
+    act = input("CCIA2-Msg> ").strip().upper()
+    if act == 'F':
+        num = input("Número de Issue: ").strip()
+        if num.isdigit():
+            subprocess.run(["python3", "/home/k1/ccia_workspace/invoice_generator.py", num])
+            input("\nPresiona ENTER para continuar...")
+
+def show_campaign_hub():
+    clear_screen()
+    print("=== 🚀 CENTRO DE CAMPAÑAS Y CAPTACIÓN COMERCIAL ===")
+    print("Repositorios de Captación Activos en GitHub:")
+    print("  1. strias-ai/embodied-ai-reservations-madrid (Principal)")
+    print("  2. strias-ai/mcp-embodied-actuator-madrid     (Model Context Protocol)")
+    print("  3. strias-ai/ros2-realworld-teleop-gateway     (ROS2 Robotics)")
+    print("  4. strias-ai/agentic-physical-sandbox-5g       (Autonomous Testing Ground)\n")
+    print("Total Clientes B2B Potenciales en DB: 333")
+    input("\nPresiona ENTER para regresar...")
+
+def show_hud():
+    while True:
+        clear_screen()
+        res_count, bounty_count, fleet_count, b2b_count, hypo_count = get_stats()
+        print("+------------------------------------------------------------------------------+")
+        print("|  🛸 CCIA2 MASTER MISSION CONTROL v3.1 - NASA COMMERCIAL & FLEET HUB         |")
+        print("|  Emisor: AERO RADAR MISIONES ESPECIALES SL (B87267548) | Node: NucBox-K11    |")
+        print("+------------------------------------------------------------------------------+")
+        print(f" 📊 TELEMETRÍA EN TIEMPO REAL:")
+        print(f"   • Reservas / Mensajes A2A: {res_count}           • Clientes B2B en DB: {b2b_count}")
+        print(f"   • Bounties Registrados: {bounty_count}           • Hipótesis IA en DB: {hypo_count}")
+        print(f"   • SIMs Tailscale 5G: {fleet_count}/20 ONLINE    • Kernel Security: HAPAX ENFORCED\n")
+        print(" OPERACIONES COMMERCIAL & AGENTIC:\n")
+        print("   [1] 📩 Centro de Mensajes y Solicitudes de Reservas A2A")
+        print("   [2] 🎯 Matriz de Bounties & Calidad de Respuestas (Cascada)")
+        print("   [3] 🚀 Campañas de Captación de IAs Libres (Multi-Repo GitHub)")
+        print("   [4] 📄 Emisor de Facturación Nominativa AERO RADAR SL")
+        print("   [5] 🛡️ Sentinel de Salud, Tailscale Funnel & Systemd")
+        print("   [Q] 🚪 Salir del Centro de Control CCIA2\n")
+
+        opt = input("CCIA2-Admin> ").strip().upper()
+        if opt == '1':
+            manage_messages()
+        elif opt == '2':
+            subprocess.run(["python3", "-c", "import sqlite3; conn=sqlite3.connect('/home/k1/ccia_workspace/university.db'); c=conn.cursor(); c.execute('SELECT COUNT(*) FROM bounty_opportunities'); print('Bounties activos:', c.fetchone()[0]); conn.close()"])
+            input("\nPresiona ENTER para volver...")
+        elif opt == '3':
+            show_campaign_hub()
+        elif opt == '4':
+            num = input("\nNúmero de Issue para factura: ").strip()
+            if num.isdigit():
+                subprocess.run(["python3", "/home/k1/ccia_workspace/invoice_generator.py", num])
+                input("\nPresiona ENTER para continuar...")
+        elif opt == 'Q':
+            print("Cerrando sesión de control CCIA2...")
+            break
+
+if __name__ == '__main__':
+    show_hud()

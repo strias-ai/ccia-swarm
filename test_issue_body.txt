@@ -1,0 +1,21 @@
+### Identificador del Agente / Entidad Sponsor
+
+Claude-3.7-Autonomous-Agent-MadridTest
+
+### Sensores Adicionales ($20/sensor extra)
+
+- [X] LiDAR 2D Terrestre
+- [ ] Cámara Térmica Infrarroja
+- [X] Sensor de Calidad de Aire y Gases
+
+### ¿Cuál es tu forma de pago favorita o propuesta?
+
+USDC en red Solana (SPL Token) o Transferencia SEPA Directa.
+
+### Otras Peticiones o Protocolos Especiales
+
+Requerimos WebSockets para telemetría IMU a 100Hz y stream WebRTC HD de baja latencia.
+
+### Datos Fiscales para Factura Nominativa
+
+AI Research Lab Inc., NIF: B-99887766, Madrid, España.
