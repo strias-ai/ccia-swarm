@@ -45,6 +45,11 @@ def with_ollama_mutex(func):
         finally: release_ollama_mutex(lock_obj)
     return wrapper
 
+def clean_llm_response(text):
+    """Elimina las etiquetas <think> y su contenido de la respuesta del modelo."""
+    if not text: return ""
+    return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+
 class TriSwarmOrchestrator:
     def __init__(self, db_path="/home/k1/ccia_workspace/ccia_bounties.db"):
         self.db_path = db_path
@@ -129,6 +134,12 @@ class TriSwarmOrchestrator:
         elif action == "WRITE":
             path = params.get("filepath", "").strip().lstrip('/')
             content = params.get("content", "")
+            
+            # Defensa Anti-Alucinaciones
+            if "Add logic to" in content or "Implement here" in content:
+                self.log("🛡️ [FILTRO] Rechazada escritura por ser pseudocódigo alucinado.")
+                return "Error: Pseudocódigo detectado. Escribe código real."
+                
             full_path = os.path.normpath(os.path.join(repo_dir, path))
             os.makedirs(os.path.dirname(full_path), exist_ok=True)
             with open(full_path, 'w', encoding='utf-8') as f:
@@ -152,7 +163,8 @@ class TriSwarmOrchestrator:
         req = urllib.request.Request(self.ollama_url, data=json.dumps({"model": model_name, "prompt": prompt, "stream": False}).encode('utf-8'), headers={'Content-Type': 'application/json'})
         try:
             with urllib.request.urlopen(req) as resp:
-                return json.loads(resp.read().decode('utf-8')).get("response", "")
+                raw_response = json.loads(resp.read().decode('utf-8')).get("response", "")
+                return clean_llm_response(raw_response)
         except Exception as e: return f"Error Ollama: {e}"
 
     def _run_local_verification(self, repo_dir):
@@ -170,7 +182,13 @@ class TriSwarmOrchestrator:
             if res.returncode != 0:
                 res = subprocess.run([sys.executable, "-m", "unittest", "discover"], capture_output=True, text=True, cwd=repo_dir)
             return (res.returncode == 0), (res.stdout + "\n" + res.stderr)
-        return True, "No se detecto test runner. Omitiendo."
+        
+        # FIX: Si no hay runners conocidos, ejecutamos un check básico de sintaxis python o make
+        if os.path.exists(os.path.join(repo_dir, "Makefile")):
+            res = subprocess.run(["make", "-n"], capture_output=True, text=True, cwd=repo_dir)
+            return (res.returncode == 0), (res.stdout + "\n" + res.stderr)
+        
+        return True, "No se detecto test runner estricto. Omitiendo barrera fuerte."
 
     def run_phase1_investigation(self, repo_dir, repo, issue_id, issue_title=""):
         model_name = self.get_model_for_role("1.1", "ccia-reina-r1coder-14b:latest")
@@ -183,7 +201,7 @@ class TriSwarmOrchestrator:
     def run_phase2_tdd_coder(self, repo_dir, repo, issue_id, diagnosis, feedback=""):
         model_name = self.get_model_for_role("2.3", "ccia-coder-xl-14b:latest")
         self.log(f"\n🧪 === FASE 2: SURGICAL CODER ===")
-        prompt = f"Eres Coder CCiA. Usa acciones JSON STRICTAS (WRITE, DELETE, GREP, READ).\nDiagnóstico: {diagnosis}\nFeedback: {feedback}"
+        prompt = f"Eres Coder CCiA. Usa acciones JSON STRICTAS (WRITE, DELETE, GREP, READ). Escribe CÓDIGO REAL FUNCIONAL, nada de pseudocódigo.\nDiagnóstico: {diagnosis}\nFeedback: {feedback}"
         response = self._call_ollama_raw(model_name, prompt)
         self._save_debate(repo, issue_id, "Fase2", "2.3", "Coder", response)
 
@@ -209,20 +227,22 @@ class TriSwarmOrchestrator:
             return res_json
 
         diff_output = self.execute_json_tool({"action": "DIFF"}, repo_dir)
-        if len(diff_output.strip()) < 40:
-            res_json = {"score": 0.0, "feedback": "Rechazado: Diff insuficiente."}
+        if len(diff_output.strip()) < 10:
+            res_json = {"score": 0.0, "feedback": "Rechazado: El Coder no hizo cambios sustanciales."}
             self._save_review(repo, issue_id, "Q1", 0.0, res_json["feedback"])
             return res_json
 
-        prompt = f"Eres Reina Q1. Issue #{issue_id}: {issue_title}\nDIFF:\n{diff_output}\n\nTests: PASSED. Evalúa diff. Responde JSON: {{\"score\": 8.5, \"feedback\": \"...\"}}"
+        prompt = f"Eres Reina Q1. Issue #{issue_id}: {issue_title}\nDIFF:\n{diff_output}\n\nEvalúa diff. Responde JSON STRICTO SIN TEXTO ADICIONAL: {{\"score\": 8.5, \"feedback\": \"...\"}}"
         response = self._call_ollama_raw(model_name, prompt)
         
         try:
             data = json.loads(re.search(r'\{.*\}', response, re.DOTALL).group(0))
         except Exception:
-            data = {"score": 8.0, "feedback": "Aceptado tras revisión."}
+            # FIX: Si la IA alucina el formato, se RECHAZA, no se aprueba.
+            self.log("⚠️ Reina Q1 falló al dar JSON válido. Rechazando por seguridad.")
+            data = {"score": 0.0, "feedback": "Formato de revisión inválido."}
 
-        self._save_review(repo, issue_id, "Q1", float(data.get("score", 8.0)), str(data.get("feedback", "Ok")))
+        self._save_review(repo, issue_id, "Q1", float(data.get("score", 0.0)), str(data.get("feedback", "Rechazado")))
         self.log(f"✅ Reina Q1: Score {data.get('score')} - {data.get('feedback')}")
         return data
 
@@ -314,7 +334,7 @@ class TriSwarmOrchestrator:
         return self.work_dir
 
     def process_bounty_loop(self, repo, issue_id, title=""):
-        self.log(f"🚀 === PIPELINE TRIPLE ENJAMBRE (I+D+IT v3 Telemetría): {repo}#{issue_id} ===")
+        self.log(f"🚀 === PIPELINE TRIPLE ENJAMBRE (I+D+IT v4.1 Estricto): {repo}#{issue_id} ===")
         repo_dir = self.clone_and_extract_context(repo)
         
         diagnosis = self.run_phase1_investigation(repo_dir, repo, issue_id, title)
@@ -388,3 +408,7 @@ class TriSwarmOrchestrator:
             cur = conn.cursor()
             cur.execute("UPDATE bounty_opportunities SET status=? WHERE repo=? AND issue_id=?", (new_state, repo, issue_id))
             conn.commit()
+
+if __name__ == "__main__":
+    orchestrator = TriSwarmOrchestrator()
+    orchestrator.run_full_pipeline()
