@@ -2,8 +2,8 @@ import libsql_experimental as libsql
 import sqlite3
 import os
 
-TURSO_URL = "https://ccia-strias-ai.aws-eu-west-1.turso.io"
-TURSO_TOKEN = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODk2MDE2NzcsImlkIjoiMDFhMGFjOGMtNzIwMS03ZDU5LTgwMjEtMDQ2OWU4Mjc2NTA3Iiwia2lkIjoiekpxNVlGbnFIMmh0N0s1YWY2TmV2UWZwSmN4WXNydllQaHRSaG5OVVQ0SSIsInJpZCI6IjczYzg1NGViLWQyNTgtNGI3Zi1hMDgyLTY5NmFlNTIxZTZmMCJ9.-5RVbtVLugf111qJfAT0nse1wiHLbPniR18MxfKNmzmuOpG9uysELWISQwCPiR6K6Cu1cd2VUu53dQ4-fD9tBA"
+TURSO_URL = os.getenv("TURSO_URL", "")
+TURSO_TOKEN = os.getenv("TURSO_TOKEN", "")
 LOCAL_DB = "/home/k1/university.db"
 
 def sync():
