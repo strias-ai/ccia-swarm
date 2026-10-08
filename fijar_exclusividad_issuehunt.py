@@ -41,23 +41,19 @@ import json
 
 WORKSPACE = "/home/k1/ccia_workspace"
 DB_PATH = os.path.join(WORKSPACE, "ccia_bounties.db")
-ENV_PATH = os.path.join(WORKSPACE, ".env")
 
-# Obtener token
+# El token debe llegar desde el entorno del proceso, nunca desde el repositorio.
 ISSUEHUNT_TOKEN = os.getenv("ISSUEHUNT_TOKEN", "")
-if not ISSUEHUNT_TOKEN and os.path.exists(ENV_PATH):
-    with open(ENV_PATH, "r", encoding="utf-8") as f:
-        for line in f:
-            if line.startswith("ISSUEHUNT_TOKEN="):
-                ISSUEHUNT_TOKEN = line.split("=", 1)[1].strip().strip('"').strip("'")
 
-if not ISSUEHUNT_TOKEN:
-    ISSUEHUNT_TOKEN = "api_27710be0855bff9b2fd7d0bbf1e49bac6d45bbd7cbe1d60aefcec5b0df204979"
 
 def fetch_issuehunt_bounties_exclusive():
     print("==================================================================")
     print(" 🎯 SCRAPER EXCLUSIVO ISSUEHUNT API (GraphQL)")
     print("==================================================================")
+
+    if not ISSUEHUNT_TOKEN:
+        print("⚠️ ISSUEHUNT_TOKEN no está definido; no se realiza la petición.")
+        return
     
     headers = {
         "User-Agent": "CCiA-Swarm/1.0",
