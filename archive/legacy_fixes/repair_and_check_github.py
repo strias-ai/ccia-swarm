@@ -29,7 +29,7 @@ def get_repo_files_context(repo_dir: str) -> str:
         files_out = subprocess.check_output(
             ["git", "-C", repo_dir, "ls-files"], stderr=subprocess.DEVNULL
         ).decode("utf-8").splitlines()
-        return "\\n".join(files_out[:30]) if files_out else "Repositorio vacío o sin archivos git."
+        return "\n".join(files_out[:30]) if files_out else "Repositorio vacío o sin archivos git."
     except Exception:
         return "Error al listar archivos del repositorio."
 '''
@@ -59,6 +59,6 @@ if gh_token:
 else:
     print("  ⚠️ No se encontró GITHUB_TOKEN en el entorno ni en .env.")
     print("  💡 Para habilitar la creación automática de PRs, añade a tu .env:")
-    print("     GITHUB_TOKEN=ghp_tu_token_de_github_aqui")
+    print("     GITHUB_TOKEN=YOUR_GITHUB_TOKEN_HERE")
 
 print("=" * 80)
