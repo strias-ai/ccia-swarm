@@ -6,23 +6,25 @@ WORKSPACE = "/home/k1/ccia_workspace"
 DB_PATH = os.path.join(WORKSPACE, "ccia_bounties.db")
 ART63_PATH = os.path.join(WORKSPACE, "modules", "art_63.py")
 ENV_PATH = os.path.join(WORKSPACE, ".env")
-ISSUEHUNT_TOKEN = "api_27710be0855bff9b2fd7d0bbf1e49bac6d45bbd7cbe1d60aefcec5b0df204979"
+ISSUEHUNT_TOKEN = os.getenv("ISSUEHUNT_TOKEN", "")
 
 print("==================================================================")
 print(" ⚡ UNIFICACIÓN Y AUTONOMÍA COMPLETA ARTEFACTO 63")
 print("==================================================================")
 
-# 1. Registrar credencial en .env si no existe
+# 1. Registrar credencial en .env solo si viene del entorno
 if os.path.exists(ENV_PATH):
     with open(ENV_PATH, "r", encoding="utf-8") as f:
         env_content = f.read()
 else:
     env_content = ""
 
-if "ISSUEHUNT_TOKEN" not in env_content:
+if ISSUEHUNT_TOKEN and "ISSUEHUNT_TOKEN=" not in env_content:
     with open(ENV_PATH, "a", encoding="utf-8") as f:
         f.write(f'\nISSUEHUNT_TOKEN="{ISSUEHUNT_TOKEN}"\n')
     print("  ✅ Token de IssueHunt registrado en .env")
+elif not ISSUEHUNT_TOKEN:
+    print("  ⚠️ ISSUEHUNT_TOKEN no está definido; se omite su configuración.")
 
 # 2. Migrar y homogeneizar esquema SQLite
 conn = sqlite3.connect(DB_PATH, timeout=30.0)
@@ -70,7 +72,7 @@ searcher_code = '''
             if count == 0:
                 print("🔄 [AUTONOMÍA ART63] 0 Bounties pendientes. Activando ingesta automática IssueHunt + GitHub...")
                 # Ingesta IssueHunt
-                import urllib.request, json
+                import urllib.request, json, os
                 token = os.getenv("ISSUEHUNT_TOKEN", "")
                 if token:
                     req_h = {
